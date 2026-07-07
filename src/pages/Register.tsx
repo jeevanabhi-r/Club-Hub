@@ -1,0 +1,299 @@
+import React, { useState } from "react";
+import { useAuth } from "../context/AuthContext";
+import { Sparkles, Eye, EyeOff, Lock, Mail, ArrowLeft, User, Image, Compass, Calendar, QrCode, ClipboardList } from "lucide-react";
+import { toast } from "react-hot-toast";
+import { BrandLogo } from "../components/BrandLogo";
+
+interface RegisterProps {
+  onLoginClick: () => void;
+}
+
+export default function Register({ onLoginClick }: RegisterProps) {
+  const { register } = useAuth();
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setError("");
+
+    if (!name.trim()) {
+      setError("Full name is required.");
+      setIsLoading(false);
+      return;
+    }
+
+    if (!email.trim()) {
+      setError("Email address is required.");
+      setIsLoading(false);
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      setError("Please enter a valid email address.");
+      setIsLoading(false);
+      return;
+    }
+
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters long.");
+      setIsLoading(false);
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setError("Passwords do not match.");
+      setIsLoading(false);
+      return;
+    }
+
+    const regData = {
+      name,
+      email,
+      password,
+      role: "student",
+      profilePic: "",
+    };
+
+    try {
+      await register(regData);
+      toast.success("Welcome to ClubHub! Account created successfully.");
+    } catch (err: any) {
+      setError(err.message || "Registration failed. Please check inputs.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <div className="relative flex min-h-screen items-center justify-center bg-zinc-950 px-4 py-12 sm:px-6 lg:px-8 overflow-hidden">
+      {/* Aesthetic Background Orbs */}
+      <div className="absolute top-1/4 left-1/4 h-80 w-80 rounded-full bg-[#f26522]/5 blur-[100px] pointer-events-none animate-pulse" />
+      <div className="absolute bottom-1/4 right-1/4 h-80 w-80 rounded-full bg-[#9a1c1f]/5 blur-[100px] pointer-events-none animate-pulse" />
+
+      <div className="relative w-full max-w-4xl grid grid-cols-1 md:grid-cols-12 gap-8 items-stretch bg-[#121212] p-6 md:p-8 rounded-2xl border border-zinc-800 shadow-2xl animate-in fade-in zoom-in duration-300">
+        
+        {/* Left Column: Account Features */}
+        <div className="md:col-span-5 flex flex-col justify-between p-6 rounded-xl bg-zinc-900/60 border border-zinc-850/50">
+          <div className="space-y-6">
+            <div>
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#f26522] text-white shadow-xl shadow-orange-500/20 mb-3">
+                <Sparkles className="h-5 w-5" />
+              </div>
+              <h2 className="font-display text-xl font-black text-zinc-50 tracking-tight">
+                Unlock Campus ClubHub Features
+              </h2>
+              <p className="text-xs text-zinc-400 mt-1">
+                Join a premium network designed to streamline college events, workshop registries, and notifications.
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              {/* Feature 1 */}
+              <div className="flex items-start space-x-3">
+                <div className="mt-0.5 rounded-lg bg-[#f26522]/10 p-1.5 text-[#f26522] border border-[#f26522]/10">
+                  <Compass className="h-3.5 w-3.5" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-zinc-200">Discover College Clubs</h4>
+                  <p className="text-[10px] text-zinc-400 mt-0.5">
+                    Explore and follow approved departmental clubs, technical societies, and sports groups.
+                  </p>
+                </div>
+              </div>
+
+              {/* Feature 2 */}
+              <div className="flex items-start space-x-3">
+                <div className="mt-0.5 rounded-lg bg-[#f26522]/10 p-1.5 text-[#f26522] border border-[#f26522]/10">
+                  <Calendar className="h-3.5 w-3.5" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-zinc-200">Register for Events</h4>
+                  <p className="text-[10px] text-zinc-400 mt-0.5">
+                    Stay ahead of schedules. Register for tech talks, sports meetups, hackathons, and seminars.
+                  </p>
+                </div>
+              </div>
+
+              {/* Feature 3 */}
+              <div className="flex items-start space-x-3">
+                <div className="mt-0.5 rounded-lg bg-[#f26522]/10 p-1.5 text-[#f26522] border border-[#f26522]/10">
+                  <QrCode className="h-3.5 w-3.5" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-zinc-200">QR Attendance Tickets</h4>
+                  <p className="text-[10px] text-zinc-400 mt-0.5">
+                    Receive direct dynamic QR passes to quickly mark attendance at actual event venues.
+                  </p>
+                </div>
+              </div>
+
+              {/* Feature 4 */}
+              <div className="flex items-start space-x-3">
+                <div className="mt-0.5 rounded-lg bg-[#f26522]/10 p-1.5 text-[#f26522] border border-[#f26522]/10">
+                  <ClipboardList className="h-3.5 w-3.5" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-zinc-200">Interactive Activity Portfolio</h4>
+                  <p className="text-[10px] text-zinc-400 mt-0.5">
+                    Build a history of registered, completed events to highlight your extracurricular participation.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-6 pt-4 border-t border-zinc-850/50 text-[10px] text-zinc-500">
+            Powered by ClubHub Database Systems
+          </div>
+        </div>
+
+        {/* Right Column: Registration Form */}
+        <div className="md:col-span-7 flex flex-col justify-center py-2 px-1">
+          <div className="flex flex-col items-center mb-6">
+            <BrandLogo size="lg" />
+          </div>
+          <div>
+            <h3 className="font-display text-lg font-bold tracking-tight text-zinc-50">
+              Create Account
+            </h3>
+            <p className="text-xs text-zinc-400 mt-1">
+              Please fill in your active credentials below to register.
+            </p>
+          </div>
+
+          {error && (
+            <div className="mt-4 rounded-lg border border-rose-500/20 bg-rose-500/10 p-3 text-xs font-semibold text-rose-400 animate-in fade-in">
+              {error}
+            </div>
+          )}
+
+          <form className="space-y-4 mt-6" onSubmit={handleSubmit}>
+            <div className="grid grid-cols-1 gap-4">
+              {/* Full Name */}
+              <div>
+                <label className="block text-[10px] font-bold tracking-wider uppercase text-zinc-400 mb-1.5">
+                  Full Name
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 flex items-center pl-3">
+                    <User className="h-4 w-4 text-zinc-500" />
+                  </div>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Enter your full name"
+                    className="block w-full rounded-lg bg-zinc-900 py-2 pl-9 text-xs text-zinc-200 border border-zinc-800 focus:border-[#f26522] focus:outline-none focus:ring-1 focus:ring-[#f26522] transition-all"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              {/* Email Address */}
+              <div>
+                <label className="block text-[10px] font-bold tracking-wider uppercase text-zinc-400 mb-1.5">
+                  Email Address
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 flex items-center pl-3">
+                    <Mail className="h-4 w-4 text-zinc-500" />
+                  </div>
+                  <input
+                    type="email"
+                    required
+                    placeholder="Enter your email"
+                    className="block w-full rounded-lg bg-zinc-900 py-2 pl-9 text-xs text-zinc-200 border border-zinc-800 focus:border-[#f26522] focus:outline-none focus:ring-1 focus:ring-[#f26522] transition-all"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              {/* Password */}
+              <div>
+                <label className="block text-[10px] font-bold tracking-wider uppercase text-zinc-400 mb-1.5">
+                  Password
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 flex items-center pl-3">
+                    <Lock className="h-4 w-4 text-zinc-500" />
+                  </div>
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    required
+                    placeholder="Enter your password"
+                    className="block w-full rounded-lg bg-zinc-900 py-2 pl-9 pr-8 text-xs text-zinc-200 border border-zinc-800 focus:border-[#f26522] focus:outline-none focus:ring-1 focus:ring-[#f26522] transition-all"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-zinc-500 hover:text-zinc-300"
+                  >
+                    {showPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Confirm Password */}
+              <div>
+                <label className="block text-[10px] font-bold tracking-wider uppercase text-zinc-400 mb-1.5">
+                  Confirm Password
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 flex items-center pl-3">
+                    <Lock className="h-4 w-4 text-zinc-500" />
+                  </div>
+                  <input
+                    type={showConfirmPassword ? "text" : "password"}
+                    required
+                    placeholder="Confirm your password"
+                    className="block w-full rounded-lg bg-zinc-900 py-2 pl-9 pr-8 text-xs text-zinc-200 border border-zinc-800 focus:border-[#f26522] focus:outline-none focus:ring-1 focus:ring-[#f26522] transition-all"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-zinc-500 hover:text-zinc-300"
+                  >
+                    {showConfirmPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="w-full rounded-lg bg-[#f26522] hover:bg-[#ea580c] py-2.5 text-xs font-semibold text-white shadow-xl transition-all disabled:opacity-50 cursor-pointer mt-4"
+            >
+              {isLoading ? "Creating account..." : "Submit Registration"}
+            </button>
+          </form>
+
+          <p className="text-center text-xs text-zinc-400 border-t border-zinc-850 pt-4 mt-6">
+            <button
+              onClick={onLoginClick}
+              className="inline-flex items-center space-x-1.5 font-semibold text-[#f26522] hover:text-[#ea580c] hover:underline bg-transparent border-0 cursor-pointer"
+            >
+              <ArrowLeft className="h-3.5 w-3.5" />
+              <span>Back to Sign In</span>
+            </button>
+          </p>
+        </div>
+
+      </div>
+    </div>
+  );
+}

@@ -1,0 +1,41 @@
+{
+  "entities": {
+    "SystemDatabase": {
+      "title": "SystemDatabase",
+      "description": "The unified state of all club and student registries, events, registrations, announcements, and notifications.",
+      "type": "object",
+      "properties": {
+        "users": {
+          "type": "array",
+          "description": "All registered student and administrator profiles"
+        },
+        "clubs": {
+          "type": "array",
+          "description": "All student clubs and registration approval statuses"
+        },
+        "events": {
+          "type": "array",
+          "description": "All created club events, timings, locations, and descriptions"
+        },
+        "registrations": {
+          "type": "array",
+          "description": "All student event registrations and attendance records"
+        },
+        "announcements": {
+          "type": "array",
+          "description": "All published club announcements and broadcasts"
+        },
+        "notifications": {
+          "type": "array",
+          "description": "All individual student and admin notification messages"
+        }
+      }
+    }
+  },
+  "firestore": {
+    "/system_data/database": {
+      "schema": "SystemDatabase",
+      "description": "The master synchronizer document backing up the relational state of the app."
+    }
+  }
+}

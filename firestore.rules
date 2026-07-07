@@ -1,0 +1,20 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // System Database Sync
+    match /system_data/{docId} {
+      allow read, write: if true;
+    }
+
+    // Settings Configuration
+    match /settings/{docId} {
+      allow read, write: if true;
+    }
+  }
+}
+

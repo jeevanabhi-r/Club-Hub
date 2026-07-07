@@ -1,0 +1,124 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 450" width="100%" height="100%">
+  <!-- Background -->
+  <rect width="1000" height="450" fill="#FFFFFF" rx="20" />
+
+  <!-- LEFT: NIAT Shield Logo (centered at x=230, y=225) -->
+  <g transform="translate(0, 0)">
+    <!-- Red Left Half of Shield -->
+    <path d="M 230 45 H 80 V 225 C 80 345, 230 405, 230 405 Z" fill="#9E1B1B" />
+    
+    <!-- White Right Half of Shield -->
+    <path d="M 230 45 H 380 V 225 C 380 345, 230 405, 230 405 Z" fill="#FFFFFF" />
+    
+    <!-- Shield Outline/Border -->
+    <path d="M 230 45 H 380 V 225 C 380 345, 230 405, 230 405 C 230 405, 80 345, 80 225 V 45 Z" fill="none" stroke="#9E1B1B" stroke-width="12" />
+
+    <!-- Dividers -->
+    <!-- Left Divider (White) -->
+    <line x1="80" y1="225" x2="230" y2="225" stroke="#FFFFFF" stroke-width="12" />
+    <!-- Right Divider (Red) -->
+    <line x1="230" y1="225" x2="380" y2="225" stroke="#9E1B1B" stroke-width="12" />
+    <!-- Center Vertical Divider -->
+    <line x1="230" y1="45" x2="230" y2="405" stroke="#9E1B1B" stroke-width="12" />
+
+    <!-- Serif letters N, I, A, T -->
+    <text x="155" y="170" font-family="'Georgia', 'Times New Roman', serif" font-size="120" font-weight="bold" fill="#FFFFFF" text-anchor="middle">N</text>
+    <text x="305" y="170" font-family="'Georgia', 'Times New Roman', serif" font-size="120" font-weight="bold" fill="#9E1B1B" text-anchor="middle">I</text>
+    <text x="155" y="350" font-family="'Georgia', 'Times New Roman', serif" font-size="120" font-weight="bold" fill="#FFFFFF" text-anchor="middle">A</text>
+    <text x="305" y="350" font-family="'Georgia', 'Times New Roman', serif" font-size="120" font-weight="bold" fill="#9E1B1B" text-anchor="middle">T</text>
+  </g>
+
+  <!-- MIDDLE: The bold dark blue "X" -->
+  <text x="480" y="260" font-family="'Inter', 'Space Grotesk', 'Helvetica', sans-serif" font-size="110" font-weight="900" fill="#1A2E40" text-anchor="middle">X</text>
+
+  <!-- RIGHT: Annamacharya University Seal (centered at x=750, y=225) -->
+  <g transform="translate(0, 0)">
+    <!-- Blue outer ring -->
+    <circle cx="750" cy="225" r="180" fill="#2E4A8F" stroke="#D4AF37" stroke-width="8" />
+    <!-- White inner circle -->
+    <circle cx="750" cy="225" r="130" fill="#FFFFFF" stroke="#D4AF37" stroke-width="6" />
+
+    <!-- Text Paths -->
+    <defs>
+      <!-- Top curve for ANNAMACHARYA UNIVERSITY (clockwise) -->
+      <path id="top-curve" d="M 595 225 A 155 155 0 0 1 905 225" fill="none" />
+      <!-- Bottom curve for VIDWAN SARVATRA PUJYATHE (counter-clockwise) -->
+      <path id="bottom-curve" d="M 595 225 A 155 155 0 0 0 905 225" fill="none" />
+    </defs>
+
+    <!-- Top text -->
+    <text font-family="'Inter', 'Helvetica', sans-serif" font-size="25" font-weight="900" fill="#FFFFFF" letter-spacing="2">
+      <textPath href="#top-curve" startOffset="50%" text-anchor="middle">ANNAMACHARYA UNIVERSITY</textPath>
+    </text>
+
+    <!-- Bottom text -->
+    <text font-family="'Inter', 'Helvetica', sans-serif" font-size="20" font-weight="900" fill="#FFFFFF" letter-spacing="1">
+      <textPath href="#bottom-curve" startOffset="50%" text-anchor="middle">★ VIDWAN SARVATRA PUJYATHE ★</textPath>
+    </text>
+
+    <!-- Center Deity Icon - Lord Annamacharya with Bow/Veena style -->
+    <!-- Centered perfectly in the seal (seal center is 750, 225; scale is 3.6; translate is x=642, y=124) -->
+    <g transform="translate(642, 124) scale(3.6)">
+      <!-- Halo arc / Aura background -->
+      <path d="M15,16 A15,15 0 0,1 45,16" fill="none" stroke="#d4af37" stroke-width="1.5" stroke-dasharray="1,1" />
+      <circle cx="30" cy="16" r="10" fill="#ffffff" opacity="0.1" />
+
+      <!-- Crown (Kiritam) -->
+      <path d="M26,10 L30,2 L34,10 Z" fill="#d4af37" stroke="#b28f1e" stroke-width="0.5" />
+      <rect x="25" y="10" width="10" height="2.5" rx="1" fill="#d4af37" stroke="#b28f1e" stroke-width="0.5" />
+      <circle cx="30" cy="1" r="1" fill="#d4af37" />
+
+      <!-- Head & Face -->
+      <circle cx="30" cy="16" r="4.5" fill="#f5c295" />
+      <!-- Hair on the sides -->
+      <path d="M25,14 C24,17 25,20 26,21" fill="none" stroke="#212121" stroke-width="1.5" stroke-linecap="round" />
+      <path d="M35,14 C36,17 35,20 34,21" fill="none" stroke="#212121" stroke-width="1.5" stroke-linecap="round" />
+
+      <!-- Neck -->
+      <rect x="28.5" y="19" width="3" height="2" fill="#f5c295" />
+
+      <!-- Green Sash/Dupatta draped on shoulders/sides -->
+      <!-- Left flowing sash -->
+      <path d="M24,21 C21,25 20,32 20,44 C21,44 22,35 23,26 Z" fill="#2e7d32" />
+      <!-- Right flowing sash -->
+      <path d="M36,21 C39,25 40,32 40,44 C39,44 38,35 37,26 Z" fill="#2e7d32" />
+
+      <!-- Torso/Robe -->
+      <path d="M26,21 H34 L35,32 H25 Z" fill="#e28743" />
+      <!-- Yellow/Orange sash on body -->
+      <path d="M25,21 Q30,23 35,21 L33,26 Q30,28 27,26 Z" fill="#ffb74d" />
+
+      <!-- Tambura (Veena / Instrument) -->
+      <!-- Gourd resonator on his right side (viewer's left) -->
+      <circle cx="21" cy="29" r="4.5" fill="#8d6e63" stroke="#5d4037" stroke-width="1" />
+      <circle cx="21" cy="29" r="2.5" fill="#a1887f" />
+      <!-- Long neck extending to top-right -->
+      <line x1="21" y1="29" x2="38" y2="12" stroke="#5d4037" stroke-width="2.2" stroke-linecap="round" />
+      <!-- Pegs -->
+      <circle cx="38" cy="11" r="1" fill="#d4af37" />
+      <circle cx="39" cy="13" r="1" fill="#d4af37" />
+      <!-- Fine gold string -->
+      <line x1="21" y1="28" x2="37" y2="13" stroke="#ffeb3b" stroke-width="0.6" />
+
+      <!-- Arms holding the instrument -->
+      <!-- Right arm (holding bottom/gourd) -->
+      <path d="M26,21 Q20,24 21,29" fill="none" stroke="#f5c295" stroke-width="2.5" stroke-linecap="round" />
+      <!-- Left arm (raised holding top of neck) -->
+      <path d="M34,21 Q41,18 36,14" fill="none" stroke="#f5c295" stroke-width="2.5" stroke-linecap="round" />
+
+      <!-- Lower Body (Orange Dhoti) -->
+      <path d="M25,32 H35 L37,49 C33,52 27,52 23,49 Z" fill="#e65100" />
+      <!-- Gold pleats / Border -->
+      <path d="M23,49 C27,52 33,52 37,49" fill="none" stroke="#d4af37" stroke-width="1.5" />
+      <line x1="30" y1="32" x2="30" y2="49" stroke="#d4af37" stroke-width="1" />
+
+      <!-- Feet -->
+      <path d="M27,49 L26,52 H28 Z" fill="#f5c295" />
+      <path d="M33,49 L34,52 H32 Z" fill="#f5c295" />
+
+      <!-- Lotus Base -->
+      <ellipse cx="30" cy="54" rx="12" ry="2.5" fill="#e91e63" />
+      <path d="M18,54 Q24,51 30,54 Q36,51 42,54 Q36,56 30,55 Q24,56 18,54 Z" fill="#ec407a" stroke="#c2185b" stroke-width="0.5" />
+    </g>
+  </g>
+</svg>

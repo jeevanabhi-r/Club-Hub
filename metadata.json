@@ -1,0 +1,8 @@
+{
+  "name": "Remix: Remix: ClubHub",
+  "description": "A modern college club and event management platform where students can discover events, register for events, and manage club activities.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
