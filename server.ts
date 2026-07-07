@@ -9,9 +9,21 @@ import adminAny, { adminDb, adminApp } from "./firebase-admin-config";
 
 setLogLevel("silent");
 
+function resolvePath(filename: string): string {
+  const cwdPath = path.join(process.cwd(), filename);
+  if (fs.existsSync(cwdPath)) {
+    return cwdPath;
+  }
+  const dirPath = path.join(__dirname, filename);
+  if (fs.existsSync(dirPath)) {
+    return dirPath;
+  }
+  return cwdPath;
+}
+
 export const app = express();
 const PORT = 3000;
-const DB_FILE = process.env.VERCEL ? "/tmp/db.json" : path.join(__dirname, "db.json");
+const DB_FILE = process.env.VERCEL ? "/tmp/db.json" : resolvePath("db.json");
 
 // Define state variables for db caching and synchronization
 let cachedDb: any = null;
@@ -460,7 +472,7 @@ let firestoreDb: any = null;
 
 try {
   let firebaseConfig: any = null;
-  const configPath = path.join(__dirname, "firebase-applet-config.json");
+  const configPath = resolvePath("firebase-applet-config.json");
   if (fs.existsSync(configPath)) {
     firebaseConfig = JSON.parse(fs.readFileSync(configPath, "utf8"));
   } else {
@@ -494,7 +506,7 @@ function getDb(): DatabaseSchema {
     return cachedDb;
   }
   if (process.env.VERCEL && !fs.existsSync(DB_FILE)) {
-    const bundleDbPath = path.join(__dirname, "db.json");
+    const bundleDbPath = resolvePath("db.json");
     try {
       if (fs.existsSync(bundleDbPath)) {
         fs.copyFileSync(bundleDbPath, DB_FILE);
@@ -816,10 +828,57 @@ ACTIVE_SESSIONS.get = function(token: string): string | undefined {
   return userId;
 };
 
+app.get("/api/diagnostics", (req, res) => {
+  try {
+    const cwdFiles = fs.existsSync(process.cwd()) ? fs.readdirSync(process.cwd()) : [];
+    const dirFiles = fs.existsSync(__dirname) ? fs.readdirSync(__dirname) : [];
+    
+    res.json({
+      processCwd: process.cwd(),
+      __dirname: __dirname,
+      cwdFiles: cwdFiles.filter(f => f.endsWith(".json") || f.endsWith(".ts") || f.endsWith(".js")),
+      dirFiles: dirFiles.filter(f => f.endsWith(".json") || f.endsWith(".ts") || f.endsWith(".js")),
+      env: {
+        NODE_ENV: process.env.NODE_ENV,
+        VERCEL: process.env.VERCEL,
+        VERCEL_ENV: process.env.VERCEL_ENV,
+        FIREBASE_PROJECT_ID: process.env.FIREBASE_PROJECT_ID ? "PRESENT" : "MISSING",
+        FIREBASE_DATABASE_ID: process.env.FIREBASE_DATABASE_ID ? "PRESENT" : "MISSING",
+      },
+      firebaseAdmin: {
+        initialized: adminApp !== null,
+        dbInitialized: adminDb !== null,
+        clientConfigPath: resolvePath("firebase-applet-config.json"),
+        clientConfigExists: fs.existsSync(resolvePath("firebase-applet-config.json")),
+        serviceAccountPath: resolvePath("firebase-service-account.json"),
+        serviceAccountExists: fs.existsSync(resolvePath("firebase-service-account.json")),
+      },
+      firebaseClient: {
+        dbInitialized: firestoreDb !== null,
+      },
+      dbFile: {
+        path: DB_FILE,
+        exists: fs.existsSync(DB_FILE),
+        size: fs.existsSync(DB_FILE) ? fs.statSync(DB_FILE).size : 0,
+      }
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || err });
+  }
+});
+
 app.post("/api/auth/login", (req, res) => {
-  const { email, password } = req.body;
+  const { email, password } = req.body || {};
+  if (!email || !password) {
+    return res.status(400).json({ error: "Email and password are required" });
+  }
+
   const db = getDb();
-  const user = db.users.find(u => u.email.toLowerCase() === email.toLowerCase());
+  if (!db || !Array.isArray(db.users)) {
+    return res.status(500).json({ error: "Database users not found or initialized" });
+  }
+
+  const user = db.users.find(u => u && typeof u.email === "string" && u.email.toLowerCase() === email.toLowerCase());
 
   if (!user || user.password !== password) {
     return res.status(401).json({ error: "Invalid email or password" });

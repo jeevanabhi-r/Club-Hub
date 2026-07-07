@@ -4,7 +4,19 @@ import { getAuth } from "firebase-admin/auth";
 import * as path from "path";
 import * as fs from "fs";
 
-const clientConfigPath = path.join(__dirname, "firebase-applet-config.json");
+function resolvePath(filename: string): string {
+  const cwdPath = path.join(process.cwd(), filename);
+  if (fs.existsSync(cwdPath)) {
+    return cwdPath;
+  }
+  const dirPath = path.join(__dirname, filename);
+  if (fs.existsSync(dirPath)) {
+    return dirPath;
+  }
+  return cwdPath;
+}
+
+const clientConfigPath = resolvePath("firebase-applet-config.json");
 let firestoreDatabaseId: string | undefined;
 if (fs.existsSync(clientConfigPath)) {
   try {
@@ -44,7 +56,7 @@ const adminAny = {
 let adminApp: any = null;
 let adminDb: any = null;
 
-const serviceAccountPath = path.join(__dirname, "firebase-service-account.json");
+const serviceAccountPath = resolvePath("firebase-service-account.json");
 
 try {
   // 1. Try to get the default app if it already exists (prevents duplicate initialization errors on hot reloads)
