@@ -9,13 +9,80 @@ import adminAny, { adminDb, adminApp } from "./firebase-admin-config";
 
 setLogLevel("silent");
 
-const app = express();
+export const app = express();
 const PORT = 3000;
 const DB_FILE = path.join(process.cwd(), "db.json");
 
+// Define state variables for db caching and synchronization
+let cachedDb: any = null;
+let lastSyncTime = 0;
+let syncPromise: Promise<void> | null = null;
+
+async function ensureDbSynced(force: boolean = false): Promise<void> {
+  const now = Date.now();
+  if (cachedDb && !force && (now - lastSyncTime < 8000)) {
+    return;
+  }
+  if (syncPromise) {
+    return syncPromise;
+  }
+  
+  syncPromise = (async () => {
+    try {
+      let cloudData: any = null;
+      if (adminDb) {
+        console.log("[Admin SDK] Syncing database state from Firestore...");
+        const docRef = adminDb.collection("system_data").doc("database");
+        const docSnap = await docRef.get();
+        if (docSnap.exists) {
+          cloudData = docSnap.data();
+          console.log("[Admin SDK] Database successfully retrieved from Firestore cloud!");
+        }
+      } else if (firestoreDb) {
+        console.log("Syncing database state from Firestore...");
+        const docRef = doc(firestoreDb, "system_data", "database");
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          cloudData = docSnap.data();
+          console.log("Database successfully retrieved from Firestore cloud!");
+        }
+      }
+      
+      if (cloudData) {
+        fs.writeFileSync(DB_FILE, JSON.stringify(cloudData, null, 2), "utf8");
+        // Clear cachedDb to force re-parsing & healing
+        cachedDb = null;
+        getDb();
+      }
+    } catch (err: any) {
+      console.warn("Failed to sync database from Firestore:", err.message || err);
+    }
+  })();
+  
+  await syncPromise;
+  syncPromise = null;
+}
+
 app.use(express.json({ limit: "20mb" }));
-app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
-app.use("/assets/uploads", express.static(path.join(process.cwd(), "uploads")));
+
+// Pre-request Sync Middleware: ensures the local database is perfectly fresh from the cloud
+app.use(async (req, res, next) => {
+  if (req.path.startsWith("/api")) {
+    try {
+      await ensureDbSynced();
+    } catch (err) {
+      console.error("Error in pre-request database sync middleware:", err);
+    }
+  }
+  next();
+});
+
+const UPLOADS_DIR = process.env.VERCEL ? "/tmp/uploads" : path.join(process.cwd(), "uploads");
+if (!fs.existsSync(UPLOADS_DIR)) {
+  fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+}
+app.use("/uploads", express.static(UPLOADS_DIR));
+app.use("/assets/uploads", express.static(UPLOADS_DIR));
 
 app.post("/api/upload", (req, res) => {
   const { name, type, data } = req.body;
@@ -26,7 +93,7 @@ app.post("/api/upload", (req, res) => {
     const buffer = Buffer.from(base64Data, "base64");
     const fileExtension = type ? type.split("/")[1] || "png" : "png";
     const fileName = `upload_${Date.now()}_${Math.floor(Math.random() * 1000)}.${fileExtension}`;
-    const uploadDir = path.join(process.cwd(), "uploads");
+    const uploadDir = process.env.VERCEL ? "/tmp/uploads" : path.join(process.cwd(), "uploads");
 
     if (!fs.existsSync(uploadDir)) {
       fs.mkdirSync(uploadDir, { recursive: true });
@@ -392,23 +459,45 @@ const initialDatabase = (): DatabaseSchema => {
 let firestoreDb: any = null;
 
 try {
+  let firebaseConfig: any = null;
   const configPath = path.join(process.cwd(), "firebase-applet-config.json");
   if (fs.existsSync(configPath)) {
-    const firebaseConfig = JSON.parse(fs.readFileSync(configPath, "utf8"));
+    firebaseConfig = JSON.parse(fs.readFileSync(configPath, "utf8"));
+  } else {
+    // Fallback to environment variables if config file doesn't exist (e.g., standard production environments)
+    firebaseConfig = {
+      apiKey: process.env.FIREBASE_API_KEY,
+      authDomain: process.env.FIREBASE_AUTH_DOMAIN,
+      projectId: process.env.FIREBASE_PROJECT_ID,
+      storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
+      messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
+      appId: process.env.FIREBASE_APP_ID,
+      firestoreDatabaseId: process.env.FIREBASE_DATABASE_ID || process.env.FIREBASE_FIRESTORE_DATABASE_ID
+    };
+  }
+
+  if (firebaseConfig && firebaseConfig.apiKey && firebaseConfig.projectId) {
     const firebaseApp = initializeApp(firebaseConfig, "server-client-fallback");
     firestoreDb = initializeFirestore(firebaseApp, {
       experimentalForceLongPolling: true,
     }, firebaseConfig.firestoreDatabaseId);
     console.log("Firebase App & Firestore initialized successfully on server.");
+  } else {
+    console.warn("Firebase config is incomplete. Falling back to local-only mode.");
   }
 } catch (err) {
   console.error("Firebase App initialization failed on server:", err);
 }
 
 function getDb(): DatabaseSchema {
+  if (cachedDb) {
+    return cachedDb;
+  }
   if (!fs.existsSync(DB_FILE)) {
     const data = initialDatabase();
     fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2), "utf8");
+    cachedDb = data;
+    lastSyncTime = Date.now();
     return data;
   }
   try {
@@ -611,11 +700,15 @@ function getDb(): DatabaseSchema {
       }
     }
 
+    cachedDb = parsed;
+    lastSyncTime = Date.now();
     return parsed as DatabaseSchema;
   } catch (error) {
     console.warn("Failed to parse database file, resetting to defaults...", error);
     const data = initialDatabase();
     fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2), "utf8");
+    cachedDb = data;
+    lastSyncTime = Date.now();
     return data;
   }
 }
@@ -644,6 +737,10 @@ function sanitizeForFirestore(obj: any): any {
 }
 
 async function saveDb(data: DatabaseSchema): Promise<void> {
+  // Update in-memory cache immediately
+  cachedDb = data;
+  lastSyncTime = Date.now();
+
   try {
     fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2), "utf8");
   } catch (err) {
@@ -668,46 +765,7 @@ async function saveDb(data: DatabaseSchema): Promise<void> {
 getDb();
 
 async function syncDatabaseFromFirestore() {
-  try {
-    if (adminDb) {
-      console.log("[Admin SDK] Attempting to restore database state from Firestore...");
-      const docRef = adminDb.collection("system_data").doc("database");
-      const docSnap = await docRef.get();
-      if (docSnap.exists) {
-        const cloudData = docSnap.data() as DatabaseSchema;
-        fs.writeFileSync(DB_FILE, JSON.stringify(cloudData, null, 2), "utf8");
-        console.log("[Admin SDK] Database successfully restored from Firestore cloud!");
-        return;
-      } else {
-        console.log("[Admin SDK] No existing cloud database found. Creating initial master record...");
-        const localData = getDb();
-        await docRef.set(sanitizeForFirestore(localData));
-        console.log("[Admin SDK] Initial database uploaded to Firestore successfully.");
-        return;
-      }
-    }
-  } catch (err: any) {
-    console.warn("[Admin SDK] Failed to restore database (falling back to client SDK):", err.message || err);
-  }
-
-  if (!firestoreDb) return;
-  try {
-    console.log("Attempting to restore database state from Firestore...");
-    const docRef = doc(firestoreDb, "system_data", "database");
-    const docSnap = await getDoc(docRef);
-    if (docSnap.exists()) {
-      const cloudData = docSnap.data() as DatabaseSchema;
-      fs.writeFileSync(DB_FILE, JSON.stringify(cloudData, null, 2), "utf8");
-      console.log("Database successfully restored from Firestore cloud!");
-    } else {
-      console.log("No existing cloud database found. Creating initial master record...");
-      const localData = getDb();
-      await setDoc(docRef, sanitizeForFirestore(localData));
-      console.log("Initial database uploaded to Firestore successfully.");
-    }
-  } catch (err: any) {
-    console.warn("Optional Firestore restore/write failed (continuing with local db.json):", err.message || err);
-  }
+  await ensureDbSynced(true);
 }
 
 syncDatabaseFromFirestore();
@@ -1981,6 +2039,10 @@ async function bootstrap() {
   });
 }
 
-bootstrap().catch((err) => {
-  console.error("Failed to bootstrap server", err);
-});
+if (!process.env.VERCEL) {
+  bootstrap().catch((err) => {
+    console.error("Failed to bootstrap server", err);
+  });
+}
+
+export default app;

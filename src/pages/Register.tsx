@@ -67,6 +67,7 @@ export default function Register({ onLoginClick }: RegisterProps) {
       await register(regData);
       toast.success("Welcome to ClubHub! Account created successfully.");
     } catch (err: any) {
+      console.error("Firebase Registration Auth error occurred:", err);
       let displayError = "Registration failed. Please check inputs.";
       if (err) {
         if (typeof err === "string") {

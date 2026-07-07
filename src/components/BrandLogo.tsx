@@ -60,8 +60,9 @@ export function BrandLogo({ className = "", size = "md" }: BrandLogoProps) {
           className={imgClass}
           onError={(e) => {
             const img = e.target as HTMLImageElement;
-            if (img.src !== "/logo.png" && finalLogoUrl !== "/logo.png") {
-              img.src = "/logo.png";
+            const fallback = "/logo.png";
+            if (!img.src.endsWith(fallback)) {
+              img.src = fallback;
             } else {
               img.style.display = "none";
             }

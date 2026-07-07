@@ -423,7 +423,11 @@ export default function LogoManagement() {
                     alt="Logo Preview"
                     className="max-h-24 w-auto object-contain select-none max-w-full"
                     onError={(e) => {
-                      (e.target as HTMLImageElement).src = "/logo.png";
+                      const img = e.target as HTMLImageElement;
+                      const fallback = "/logo.png";
+                      if (!img.src.endsWith(fallback)) {
+                        img.src = fallback;
+                      }
                     }}
                   />
                   <span className="text-[10px] font-medium bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-full border border-emerald-500/20">

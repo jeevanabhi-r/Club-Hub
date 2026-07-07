@@ -21,6 +21,22 @@ if (initialToken) {
   axios.defaults.headers.common["Authorization"] = `Bearer ${initialToken}`;
 }
 
+// Global Axios Response Interceptor to normalize all backend errors
+// This guarantees that error properties of response data are always clean strings
+// and completely prevents [object Object] errors in the UI.
+axios.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response && error.response.data) {
+      const data = error.response.data;
+      if (data.error && typeof data.error === "object") {
+        data.error = data.error.message || data.error.error || JSON.stringify(data.error);
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(initialToken);

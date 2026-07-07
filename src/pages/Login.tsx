@@ -23,6 +23,7 @@ export default function Login({ onRegisterClick, onForgotPasswordClick }: LoginP
     try {
       await login(email, password);
     } catch (err: any) {
+      console.error("Firebase Login Auth error occurred:", err);
       let displayError = "Failed to log in. Please check your credentials.";
       if (err) {
         if (typeof err === "string") {
