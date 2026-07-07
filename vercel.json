@@ -14,8 +14,12 @@
       "destination": "/api/index.ts"
     },
     {
-      "source": "/(.*)",
+      "source": "/((?!api|uploads|assets|logo\\.png|favicon\\.ico).*\\..*)",
       "destination": "/$1"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ]
 }

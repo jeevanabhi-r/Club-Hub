@@ -11,7 +11,7 @@ setLogLevel("silent");
 
 export const app = express();
 const PORT = 3000;
-const DB_FILE = path.join(process.cwd(), "db.json");
+const DB_FILE = process.env.VERCEL ? "/tmp/db.json" : path.join(__dirname, "db.json");
 
 // Define state variables for db caching and synchronization
 let cachedDb: any = null;
@@ -460,7 +460,7 @@ let firestoreDb: any = null;
 
 try {
   let firebaseConfig: any = null;
-  const configPath = path.join(process.cwd(), "firebase-applet-config.json");
+  const configPath = path.join(__dirname, "firebase-applet-config.json");
   if (fs.existsSync(configPath)) {
     firebaseConfig = JSON.parse(fs.readFileSync(configPath, "utf8"));
   } else {
@@ -492,6 +492,21 @@ try {
 function getDb(): DatabaseSchema {
   if (cachedDb) {
     return cachedDb;
+  }
+  if (process.env.VERCEL && !fs.existsSync(DB_FILE)) {
+    const bundleDbPath = path.join(__dirname, "db.json");
+    try {
+      if (fs.existsSync(bundleDbPath)) {
+        fs.copyFileSync(bundleDbPath, DB_FILE);
+        console.log("Copied seeded db.json from bundle to Vercel /tmp directory.");
+      } else {
+        const data = initialDatabase();
+        fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2), "utf8");
+        console.log("Initialized new database in Vercel /tmp directory.");
+      }
+    } catch (err) {
+      console.error("Failed to initialize Vercel tmp database:", err);
+    }
   }
   if (!fs.existsSync(DB_FILE)) {
     const data = initialDatabase();
