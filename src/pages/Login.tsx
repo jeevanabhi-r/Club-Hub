@@ -23,7 +23,26 @@ export default function Login({ onRegisterClick, onForgotPasswordClick }: LoginP
     try {
       await login(email, password);
     } catch (err: any) {
-      setError(err.message || "Failed to log in. Please check your credentials.");
+      let displayError = "Failed to log in. Please check your credentials.";
+      if (err) {
+        if (typeof err === "string") {
+          displayError = err;
+        } else if (err.message && typeof err.message === "string") {
+          displayError = err.message;
+        } else if (err.error && typeof err.error === "string") {
+          displayError = err.error;
+        } else {
+          try {
+            displayError = JSON.stringify(err);
+          } catch (_) {
+            // fallback
+          }
+        }
+      }
+      if (displayError === "[object Object]") {
+        displayError = "Failed to log in. Please check your credentials.";
+      }
+      setError(displayError);
     } finally {
       setIsLoading(false);
     }

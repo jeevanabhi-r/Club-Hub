@@ -67,7 +67,26 @@ export default function Register({ onLoginClick }: RegisterProps) {
       await register(regData);
       toast.success("Welcome to ClubHub! Account created successfully.");
     } catch (err: any) {
-      setError(err.message || "Registration failed. Please check inputs.");
+      let displayError = "Registration failed. Please check inputs.";
+      if (err) {
+        if (typeof err === "string") {
+          displayError = err;
+        } else if (err.message && typeof err.message === "string") {
+          displayError = err.message;
+        } else if (err.error && typeof err.error === "string") {
+          displayError = err.error;
+        } else {
+          try {
+            displayError = JSON.stringify(err);
+          } catch (_) {
+            // fallback
+          }
+        }
+      }
+      if (displayError === "[object Object]") {
+        displayError = "Registration failed. Please check inputs.";
+      }
+      setError(displayError);
     } finally {
       setIsLoading(false);
     }

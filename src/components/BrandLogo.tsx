@@ -1,5 +1,7 @@
 import React from "react";
 import { useLogo } from "../context/LogoContext";
+// @ts-ignore
+import defaultLogo from "../assets/logo.png";
 
 interface BrandLogoProps {
   className?: string;
@@ -47,19 +49,22 @@ export function BrandLogo({ className = "", size = "md" }: BrandLogoProps) {
     );
   }
 
-  const isLogin = size === "login";
-  const isSidebar = size === "sidebar";
+  const finalLogoUrl = logoUrl || defaultLogo || "/logo.png";
 
   return (
     <div className={`select-none flex items-center justify-center ${gapClass} ${className}`}>
-      {logoUrl && (
+      {finalLogoUrl && (
         <img
-          src={logoUrl}
+          src={finalLogoUrl}
           alt="ClubHub Logo"
           className={imgClass}
           onError={(e) => {
-            // Gracefully hide the image if the uploaded URL fails to load
-            (e.target as HTMLImageElement).style.display = "none";
+            const img = e.target as HTMLImageElement;
+            if (img.src !== "/logo.png" && finalLogoUrl !== "/logo.png") {
+              img.src = "/logo.png";
+            } else {
+              img.style.display = "none";
+            }
           }}
         />
       )}

@@ -38,8 +38,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Setup axios authorization headers
       axios.defaults.headers.common["Authorization"] = `Bearer ${receivedToken}`;
     } catch (error: any) {
-      const msg = error.response?.data?.error || "Invalid credentials";
-      throw new Error(msg);
+      let msg = error.response?.data?.error || "Invalid credentials";
+      if (msg && typeof msg === "object") {
+        msg = msg.message || msg.error || JSON.stringify(msg);
+      }
+      throw new Error(typeof msg === "string" ? msg : "Invalid credentials");
     }
   };
 
@@ -58,8 +61,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return response.data;
       }
     } catch (error: any) {
-      const msg = error.response?.data?.error || "Registration failed";
-      throw new Error(msg);
+      let msg = error.response?.data?.error || "Registration failed";
+      if (msg && typeof msg === "object") {
+        msg = msg.message || msg.error || JSON.stringify(msg);
+      }
+      throw new Error(typeof msg === "string" ? msg : "Registration failed");
     }
   };
 
