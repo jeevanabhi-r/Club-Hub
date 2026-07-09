@@ -23,6 +23,7 @@ import { Event, Registration } from "../types";
 import { EventCardSkeleton } from "../components/Skeletons";
 import { toast } from "react-hot-toast";
 import { formatToDDMMYY, parseEventDate } from "../utils/date";
+import { canEditEvent, canDeleteEvent, isSuperAdmin } from "../utils/permissions";
 import CreateEventModal from "../components/CreateEventModal";
 import { ConfirmModal } from "../components/ConfirmModal";
 
@@ -38,10 +39,11 @@ export default function Events({ searchQuery, filter = "all" }: EventsProps) {
   const [registrations, setRegistrations] = useState<Registration[]>([]);
   const [savedEventIds, setSavedEventIds] = useState<string[]>(user?.savedEvents || []);
   const [loading, setLoading] = useState(true);
+  const [clubs, setClubs] = useState<any[]>([]);
 
   // Filters
-  const [selectedCategory, setSelectedCategory] = useState("All");
   const [selectedClub, setSelectedClub] = useState("All");
+  const [statusFilter, setStatusFilter] = useState<"all" | "upcoming" | "past">("all");
 
   // Selected event details modal
   const [selectedEventDetails, setSelectedEventDetails] = useState<Event | null>(null);
@@ -54,8 +56,12 @@ export default function Events({ searchQuery, filter = "all" }: EventsProps) {
   const fetchEvents = async () => {
     try {
       setLoading(true);
-      const res = await axios.get("/api/events");
+      const eventsUrl = filter === "past" ? "/api/events/past" : "/api/events";
+      const res = await axios.get(eventsUrl);
       setEvents(res.data);
+
+      const clubsRes = await axios.get("/api/clubs");
+      setClubs(clubsRes.data || []);
 
       if (selectedEventDetails) {
         const updatedSelected = res.data.find((e: Event) => e.id === selectedEventDetails.id);
@@ -138,8 +144,8 @@ export default function Events({ searchQuery, filter = "all" }: EventsProps) {
     }
   };
 
-  const categories = ["All", ...new Set(events.map(e => e.category))];
-  const clubsList = ["All", ...new Set(events.map(e => e.clubName))];
+  const approvedClubs = clubs.filter(c => c.approved).map(c => c.name);
+  const clubsList = ["All", ...new Set(approvedClubs.length > 0 ? approvedClubs : events.map(e => e.clubName))];
 
   // Filters application
   const filteredEvents = events
@@ -150,23 +156,24 @@ export default function Events({ searchQuery, filter = "all" }: EventsProps) {
         evt.clubName.toLowerCase().includes(searchQuery.toLowerCase()) ||
         evt.venue.toLowerCase().includes(searchQuery.toLowerCase());
 
-      const matchesCategory = selectedCategory === "All" || evt.category === selectedCategory;
-      const matchesClub = selectedClub === "All" || evt.clubName === selectedClub;
+      const matchesClub = selectedClub === "All" || 
+                          evt.clubName === selectedClub ||
+                          (evt.clubId && clubs.find(c => c.id === evt.clubId)?.name === selectedClub);
 
       let matchesFilter = true;
-      if (filter === "upcoming") {
+      if (filter === "upcoming" || (filter === "all" && statusFilter === "upcoming")) {
         matchesFilter = evt.status === "Upcoming";
-      } else if (filter === "past") {
+      } else if (filter === "past" || (filter === "all" && statusFilter === "past")) {
         matchesFilter = evt.status === "Completed" || evt.status === "Cancelled";
       } else if (filter === "my-registrations") {
         matchesFilter = registrations.some(r => r.eventId === evt.id && r.studentId === user?.id);
       }
 
-      return matchesSearch && matchesCategory && matchesClub && matchesFilter;
+      return matchesSearch && matchesClub && matchesFilter;
     })
     .sort((a, b) => {
       // Sort past events descending (newest first), otherwise ascending (soonest first)
-      if (filter === "past") {
+      if (filter === "past" || (filter === "all" && statusFilter === "past")) {
         return parseEventDate(b.date) - parseEventDate(a.date);
       }
       return parseEventDate(a.date) - parseEventDate(b.date);
@@ -191,6 +198,18 @@ export default function Events({ searchQuery, filter = "all" }: EventsProps) {
              "Discover hackathons, cultural fests, workshops, and sports matches organized by Noida Institute"}
           </p>
         </div>
+        {user?.role === "super_admin" && (
+          <button
+            onClick={() => {
+              setEventToEdit(null);
+              setIsEditModalOpen(true);
+            }}
+            className="flex items-center space-x-1.5 rounded-lg bg-[#f26522] hover:bg-[#ea580c] px-4 py-2 text-xs font-bold text-white transition-all shadow-lg shadow-orange-500/10 cursor-pointer self-start md:self-auto shrink-0"
+          >
+            <Plus className="h-3.5 w-3.5 stroke-[3]" />
+            <span>Add New Event</span>
+          </button>
+        )}
       </div>
 
       {/* Filters Strip */}
@@ -200,21 +219,9 @@ export default function Events({ searchQuery, filter = "all" }: EventsProps) {
           <span>Filters:</span>
         </div>
 
-        {/* Category Filter */}
-        <select
-          className="rounded-lg bg-zinc-900 py-1.5 px-3 text-xs text-zinc-300 border border-zinc-800 focus:outline-none focus:ring-1 focus:ring-[#f26522]"
-          value={selectedCategory}
-          onChange={(e) => setSelectedCategory(e.target.value)}
-        >
-          <option value="All">All Categories</option>
-          {categories.filter(c => c !== "All").map(cat => (
-            <option key={cat} value={cat}>{cat}</option>
-          ))}
-        </select>
-
         {/* Club Filter */}
         <select
-          className="rounded-lg bg-zinc-900 py-1.5 px-3 text-xs text-zinc-300 border border-zinc-800 focus:outline-none focus:ring-1 focus:ring-[#f26522]"
+          className="rounded-lg bg-zinc-900 py-1.5 px-3 text-xs text-zinc-300 border border-zinc-800 focus:outline-none focus:ring-1 focus:ring-[#f26522] cursor-pointer"
           value={selectedClub}
           onChange={(e) => setSelectedClub(e.target.value)}
         >
@@ -223,6 +230,19 @@ export default function Events({ searchQuery, filter = "all" }: EventsProps) {
             <option key={c} value={c}>{c}</option>
           ))}
         </select>
+
+        {/* Status Filter */}
+        {filter === "all" && (
+          <select
+            className="rounded-lg bg-zinc-900 py-1.5 px-3 text-xs text-zinc-300 border border-zinc-800 focus:outline-none focus:ring-1 focus:ring-[#f26522] cursor-pointer"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as any)}
+          >
+            <option value="all">All Statuses</option>
+            <option value="upcoming">Upcoming Only</option>
+            <option value="past">Past Only</option>
+          </select>
+        )}
       </div>
 
       {/* Events Cards Grid */}
@@ -255,7 +275,8 @@ export default function Events({ searchQuery, filter = "all" }: EventsProps) {
             const isRegistered = registrations.some(r => r.eventId === evt.id && r.studentId === user?.id);
             const isSaved = savedEventIds.includes(evt.id);
             const isFull = evt.registeredCount >= evt.maxParticipants;
-            const canManage = user?.role === "super_admin" || user?.role === "club_admin";
+            
+            const canManage = canEditEvent(user, evt);
 
             const isPast = evt.status === "Completed" || evt.status === "Cancelled" || filter === "past";
 
@@ -318,7 +339,7 @@ export default function Events({ searchQuery, filter = "all" }: EventsProps) {
                   </div>
 
                   {/* Controls / Actions Block */}
-                  <div className="flex items-center gap-2 pt-1 shrink-0">
+                  <div className="flex items-center gap-2 pt-1 shrink-0 w-full">
                     {canManage ? (
                       <div className="flex items-center gap-2 w-full">
                         <button
@@ -346,24 +367,33 @@ export default function Events({ searchQuery, filter = "all" }: EventsProps) {
                         </button>
                       </div>
                     ) : (
-                      // Student Actions
-                      <div className="flex items-center gap-2 w-full">
-                        <button
-                          onClick={() => setSelectedEventDetails(evt)}
-                          className="flex-1 rounded-lg bg-[#2c2c2e] hover:bg-[#3a3a3c] py-2 text-xs font-bold text-white text-center transition-colors cursor-pointer"
-                        >
-                          View Details
-                        </button>
-                        {evt.driveLink && (
-                          <a
-                            href={evt.driveLink}
-                            target="_blank"
-                            referrerPolicy="no-referrer"
-                            rel="noopener noreferrer"
-                            className="flex-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 py-2 text-xs font-bold text-white text-center transition-colors flex items-center justify-center"
+                      // Student / Other Club Admin Actions
+                      <div className="flex flex-col w-full space-y-2">
+                        <div className="flex items-center gap-2 w-full">
+                          <button
+                            onClick={() => setSelectedEventDetails(evt)}
+                            className="flex-1 rounded-lg bg-[#2c2c2e] hover:bg-[#3a3a3c] py-2 text-xs font-bold text-white text-center transition-colors cursor-pointer"
                           >
-                            View Photos
-                          </a>
+                            View Details
+                          </button>
+                          {evt.driveLink && (
+                            <a
+                              href={evt.driveLink}
+                              target="_blank"
+                              referrerPolicy="no-referrer"
+                              rel="noopener noreferrer"
+                              className="flex-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 py-2 text-xs font-bold text-white text-center transition-colors flex items-center justify-center"
+                            >
+                              View Photos
+                            </a>
+                          )}
+                        </div>
+                        {user?.role === "club_admin" && (
+                          <div className="flex items-center justify-center gap-1.5 rounded-lg bg-[#2c2c2e]/60 border border-zinc-800 py-1.5 px-3 text-[10px] font-bold text-zinc-400 tracking-wide uppercase">
+                            <span>Read Only</span>
+                            <span className="text-zinc-600">•</span>
+                            <span>Managed by {evt.clubName}</span>
+                          </div>
                         )}
                       </div>
                     )}
@@ -380,7 +410,8 @@ export default function Events({ searchQuery, filter = "all" }: EventsProps) {
         const isReg = registrations.some(r => r.eventId === selectedEventDetails.id && r.studentId === user?.id);
         const isFull = selectedEventDetails.registeredCount >= selectedEventDetails.maxParticipants;
         const isPast = selectedEventDetails.status === "Completed" || selectedEventDetails.status === "Cancelled" || filter === "past";
-        const canManage = user?.role === "super_admin" || user?.role === "club_admin";
+        
+        const canManage = canEditEvent(user, selectedEventDetails);
 
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">

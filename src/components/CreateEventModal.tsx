@@ -5,6 +5,7 @@ import { toast } from "react-hot-toast";
 import { Club, Event } from "../types";
 import { useAuth } from "../context/AuthContext";
 import { formatToDDMMYY } from "../utils/date";
+import { canEditEvent } from "../utils/permissions";
 
 interface CreateEventModalProps {
   isOpen: boolean;
@@ -36,7 +37,12 @@ export default function CreateEventModal({ isOpen, onClose, onSuccess, eventToEd
         try {
           const res = await axios.get("/api/clubs");
           setClubs(res.data);
-          if (!eventToEdit) {
+          if (user && user.role === "club_admin") {
+            const adminClubId = user.clubId || user.assignedClubId;
+            if (adminClubId) {
+              setClubId(adminClubId);
+            }
+          } else if (!eventToEdit) {
             setClubId("");
           }
         } catch (err) {
@@ -46,6 +52,13 @@ export default function CreateEventModal({ isOpen, onClose, onSuccess, eventToEd
       fetchClubs();
 
       if (eventToEdit) {
+        // Secure access check on frontend
+        if (!canEditEvent(user, eventToEdit)) {
+          toast.error("Access Denied: You cannot manage another club's events.");
+          onClose();
+          return;
+        }
+
         setTitle(eventToEdit.title || "");
         setDescription(eventToEdit.description || "");
         setClubId(eventToEdit.clubId || "");
@@ -61,7 +74,12 @@ export default function CreateEventModal({ isOpen, onClose, onSuccess, eventToEd
         setDescription("");
         setDate("");
         setTime("");
-        setClubId("");
+        if (user && user.role === "club_admin") {
+          const adminClubId = user.clubId || user.assignedClubId;
+          setClubId(adminClubId || "");
+        } else {
+          setClubId("");
+        }
         setBannerUrl("");
         setDriveLink("");
         setSelectedFileName("No file chosen");
@@ -115,15 +133,21 @@ export default function CreateEventModal({ isOpen, onClose, onSuccess, eventToEd
       toast.error("Time is required");
       return;
     }
-    if (!clubId) {
+
+    let finalClubId = clubId;
+    if (user && user.role === "club_admin") {
+      finalClubId = user.clubId || user.assignedClubId || "";
+    }
+
+    if (!finalClubId) {
       toast.error("Hosting Club is required");
       return;
     }
 
     try {
       setLoading(true);
-      const hostClub = clubs.find(c => c.id === clubId);
-      const clubName = hostClub ? hostClub.name : "Unknown Club";
+      const hostClub = clubs.find(c => c.id === finalClubId);
+      const clubName = hostClub ? hostClub.name : (user?.clubName || "Unknown Club");
 
       // Attach Google Drive Link in requirements/notes if present
       const reqText = driveLink ? `Google Drive Resource: ${driveLink}` : "";
@@ -132,7 +156,7 @@ export default function CreateEventModal({ isOpen, onClose, onSuccess, eventToEd
 
       const payload = {
         title,
-        clubId,
+        clubId: finalClubId,
         clubName,
         category: eventToEdit ? eventToEdit.category : "Coding",
         description,
@@ -251,19 +275,25 @@ export default function CreateEventModal({ isOpen, onClose, onSuccess, eventToEd
               <label className="block text-[10px] font-black uppercase text-zinc-500 tracking-wider mb-1.5">
                 Hosting Club
               </label>
-              <select
-                required
-                value={clubId}
-                onChange={(e) => setClubId(e.target.value)}
-                className="w-full rounded-lg bg-[#1e1e1e] border border-zinc-800/80 px-3.5 py-2.5 text-xs text-zinc-300 focus:outline-none focus:ring-1 focus:ring-[#f26522] transition-all"
-              >
-                <option value="">-- Select Club --</option>
-                {clubs.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
+              {user?.role === "club_admin" ? (
+                <div className="w-full rounded-lg bg-zinc-900/60 border border-zinc-800 px-3.5 py-2.5 text-xs text-zinc-400 select-none">
+                  {user.clubName || clubs.find(c => c.id === clubId)?.name || "Assigned Club"}
+                </div>
+              ) : (
+                <select
+                  required
+                  value={clubId}
+                  onChange={(e) => setClubId(e.target.value)}
+                  className="w-full rounded-lg bg-[#1e1e1e] border border-zinc-800/80 px-3.5 py-2.5 text-xs text-zinc-300 focus:outline-none focus:ring-1 focus:ring-[#f26522] transition-all"
+                >
+                  <option value="">-- Select Club --</option>
+                  {clubs.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
           </div>
 

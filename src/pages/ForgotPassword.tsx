@@ -1,8 +1,9 @@
 import React, { useState } from "react";
 import axios from "axios";
-import { Mail, ArrowLeft, Send, Lock, Eye, EyeOff, Key } from "lucide-react";
+import { Mail, ArrowLeft, Send, Lock, Key } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { BrandLogo } from "../components/BrandLogo";
+import { AuthInput } from "../components/AuthInput";
 
 interface ForgotPasswordProps {
   onLoginClick: () => void;
@@ -15,8 +16,6 @@ export default function ForgotPassword({ onLoginClick }: ForgotPasswordProps) {
   const [otp, setOtp] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const [step, setStep] = useState<ResetStep>("ENTER_EMAIL");
   const [isLoading, setIsLoading] = useState(false);
@@ -169,21 +168,15 @@ export default function ForgotPassword({ onLoginClick }: ForgotPasswordProps) {
               <label htmlFor="email" className="block text-xs font-semibold text-zinc-300 mb-1.5">
                 Email Address
               </label>
-              <div className="relative">
-                <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                  <Mail className="h-4 w-4 text-zinc-500" />
-                </div>
-                <input
-                  id="email"
-                  type="email"
-                  required
-                  placeholder="Enter your registered email"
-                  style={{ paddingLeft: "2.5rem" }}
-                  className="block w-full rounded-lg bg-zinc-900 py-2.5 pl-10 pr-3 text-sm text-zinc-200 placeholder-zinc-600 border border-zinc-800 focus:border-[#f26522] focus:outline-none focus:ring-1 focus:ring-[#f26522] transition-all"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
-              </div>
+              <AuthInput
+                id="email"
+                type="email"
+                required
+                placeholder="Enter your registered email"
+                icon={Mail}
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
             </div>
 
             <div className="pt-2">
@@ -205,22 +198,17 @@ export default function ForgotPassword({ onLoginClick }: ForgotPasswordProps) {
               <label htmlFor="otp" className="block text-xs font-semibold text-zinc-300 mb-1.5">
                 6-Digit OTP Code
               </label>
-              <div className="relative">
-                <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                  <Key className="h-4 w-4 text-zinc-500" />
-                </div>
-                <input
-                  id="otp"
-                  type="text"
-                  required
-                  maxLength={6}
-                  placeholder="Enter 6-digit OTP"
-                  style={{ paddingLeft: "2.5rem" }}
-                  className="block w-full rounded-lg bg-zinc-900 py-2.5 pl-10 pr-3 text-sm text-zinc-200 placeholder-zinc-600 border border-zinc-800 focus:border-[#f26522] focus:outline-none focus:ring-1 focus:ring-[#f26522] transition-all font-mono tracking-[0.25em] text-center"
-                  value={otp}
-                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
-                />
-              </div>
+              <AuthInput
+                id="otp"
+                type="text"
+                required
+                maxLength={6}
+                placeholder="Enter 6-digit OTP"
+                icon={Key}
+                className="font-mono tracking-[0.25em] text-center"
+                value={otp}
+                onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
+              />
             </div>
 
             <div className="flex space-x-3 pt-2">
@@ -249,28 +237,15 @@ export default function ForgotPassword({ onLoginClick }: ForgotPasswordProps) {
               <label htmlFor="pass" className="block text-xs font-semibold text-zinc-300 mb-1.5">
                 New Password
               </label>
-              <div className="relative">
-                <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                  <Lock className="h-4 w-4 text-zinc-500" />
-                </div>
-                <input
-                  id="pass"
-                  type={showPassword ? "text" : "password"}
-                  required
-                  placeholder="Enter your new password"
-                  style={{ paddingLeft: "2.5rem", paddingRight: "2.5rem" }}
-                  className="block w-full rounded-lg bg-zinc-900 py-2.5 pl-10 pr-10 text-sm text-zinc-200 placeholder-zinc-600 border border-zinc-800 focus:border-[#f26522] focus:outline-none focus:ring-1 focus:ring-[#f26522] transition-all"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-zinc-500 hover:text-zinc-300 bg-transparent border-0 cursor-pointer"
-                >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              </div>
+              <AuthInput
+                id="pass"
+                type="password"
+                required
+                placeholder="Enter your new password"
+                icon={Lock}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
             </div>
 
             {/* Confirm Password */}
@@ -278,28 +253,15 @@ export default function ForgotPassword({ onLoginClick }: ForgotPasswordProps) {
               <label htmlFor="confirm-pass" className="block text-xs font-semibold text-zinc-300 mb-1.5">
                 Confirm Password
               </label>
-              <div className="relative">
-                <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                  <Lock className="h-4 w-4 text-zinc-500" />
-                </div>
-                <input
-                  id="confirm-pass"
-                  type={showConfirmPassword ? "text" : "password"}
-                  required
-                  placeholder="Confirm your password"
-                  style={{ paddingLeft: "2.5rem", paddingRight: "2.5rem" }}
-                  className="block w-full rounded-lg bg-zinc-900 py-2.5 pl-10 pr-10 text-sm text-zinc-200 placeholder-zinc-600 border border-zinc-800 focus:border-[#f26522] focus:outline-none focus:ring-1 focus:ring-[#f26522] transition-all"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-zinc-500 hover:text-zinc-300 bg-transparent border-0 cursor-pointer"
-                >
-                  {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              </div>
+              <AuthInput
+                id="confirm-pass"
+                type="password"
+                required
+                placeholder="Confirm your password"
+                icon={Lock}
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+              />
             </div>
 
             <div className="pt-2">

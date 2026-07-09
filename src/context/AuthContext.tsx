@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import axios from "axios";
 import { User } from "../types";
+import { doc, onSnapshot } from "firebase/firestore";
+import { db } from "../firebase";
 
 interface AuthContextType {
   user: User | null;
@@ -116,6 +118,50 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     refreshUser();
   }, [token]);
+
+  const userRef = React.useRef(user);
+  useEffect(() => {
+    userRef.current = user;
+  }, [user]);
+
+  useEffect(() => {
+    if (!token || !user?.id) return;
+
+    const targetUserId = user.id;
+    const docRef = doc(db, "system_data", "database");
+    
+    const unsubscribe = onSnapshot(docRef, (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.data();
+        if (data.users) {
+          const foundUser = data.users.find((u: any) => u.id === targetUserId);
+          if (foundUser) {
+            // Exclude password for safety
+            const { password, ...safeUser } = foundUser;
+            const resolvedUser = { ...safeUser };
+            
+            // Dynamically resolve assigned club name if any
+            if (safeUser.role === "club_admin" && safeUser.clubId && data.clubs) {
+              const assignedClub = data.clubs.find((c: any) => c.id === safeUser.clubId);
+              if (assignedClub) {
+                resolvedUser.clubName = assignedClub.name;
+              }
+            }
+
+            // Deep comparison to prevent infinite re-renders
+            const currentUser = userRef.current;
+            if (JSON.stringify(resolvedUser) !== JSON.stringify(currentUser)) {
+              setUser(resolvedUser);
+            }
+          }
+        }
+      }
+    }, (error) => {
+      console.warn("[AuthContext] Real-time user document sync connection issue (likely offline/unreachable):", error);
+    });
+
+    return () => unsubscribe();
+  }, [token, user?.id]);
 
   return (
     <AuthContext.Provider

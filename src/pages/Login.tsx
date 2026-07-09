@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 import { useAuth } from "../context/AuthContext";
-import { Eye, EyeOff } from "lucide-react";
+import { Mail, Lock } from "lucide-react";
 import { BrandLogo } from "../components/BrandLogo";
+import { AuthInput } from "../components/AuthInput";
 
 interface LoginProps {
   onRegisterClick: () => void;
@@ -12,7 +13,6 @@ export default function Login({ onRegisterClick, onForgotPasswordClick }: LoginP
   const { login } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -76,15 +76,19 @@ export default function Login({ onRegisterClick, onForgotPasswordClick }: LoginP
           <div className="space-y-4">
             {/* Email field */}
             <div>
-              <label htmlFor="email" className="block text-xs font-bold text-zinc-400 mb-2">
+              <label
+                htmlFor="email"
+                className="block text-xs font-bold text-zinc-400 mb-2"
+              >
                 Email
               </label>
-              <input
+              <AuthInput
                 id="email"
                 type="email"
                 required
+                autoComplete="email"
                 placeholder="Enter your email"
-                className="block w-full rounded-lg bg-[#18181b] py-2.5 px-3.5 text-sm text-zinc-200 placeholder-zinc-600 border border-zinc-800 focus:border-[#f26522] focus:outline-none focus:ring-1 focus:ring-[#f26522] transition-all"
+                icon={Mail}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
               />
@@ -93,7 +97,10 @@ export default function Login({ onRegisterClick, onForgotPasswordClick }: LoginP
             {/* Password field */}
             <div>
               <div className="flex items-center justify-between mb-2">
-                <label htmlFor="password" className="block text-xs font-bold text-zinc-400">
+                <label
+                  htmlFor="password"
+                  className="block text-xs font-bold text-zinc-400"
+                >
                   Password
                 </label>
                 <button
@@ -104,24 +111,16 @@ export default function Login({ onRegisterClick, onForgotPasswordClick }: LoginP
                   Forgot Password?
                 </button>
               </div>
-              <div className="relative">
-                <input
-                  id="password"
-                  type={showPassword ? "text" : "password"}
-                  required
-                  placeholder="••••••••"
-                  className="block w-full rounded-lg bg-[#18181b] py-2.5 pl-3.5 pr-10 text-sm text-zinc-200 placeholder-zinc-600 border border-zinc-800 focus:border-[#f26522] focus:outline-none focus:ring-1 focus:ring-[#f26522] transition-all"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-zinc-500 hover:text-zinc-300"
-                >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              </div>
+              <AuthInput
+                id="password"
+                type="password"
+                required
+                autoComplete="current-password"
+                placeholder="Enter your password"
+                icon={Lock}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
             </div>
           </div>
 

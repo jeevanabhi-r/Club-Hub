@@ -122,13 +122,11 @@ export default function Students() {
       {/* Filter strip */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-900/20 p-4 rounded-xl border border-slate-800/60">
         <div className="relative flex-1 max-w-sm">
-          <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-            <Search className="h-4 w-4 text-slate-500" />
-          </div>
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-500 pointer-events-none z-10" />
           <input
             type="text"
             placeholder="Search registered students or events..."
-            className="w-full rounded-lg bg-slate-950/60 py-1.5 pl-9 pr-3 text-xs text-slate-200 placeholder-slate-600 border border-slate-800 focus:border-emerald-500 focus:outline-none"
+            className="w-full rounded-lg bg-slate-950/60 py-2.5 pl-14 pr-12 text-xs text-slate-200 placeholder-slate-600 border border-slate-800 focus:border-emerald-500 focus:outline-none"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />

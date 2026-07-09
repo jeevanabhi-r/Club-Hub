@@ -1,5 +1,7 @@
 import React from "react";
+import { Link } from "react-router-dom";
 import { useLogo } from "../context/LogoContext";
+import { useAuth } from "../context/AuthContext";
 // @ts-ignore
 import defaultLogo from "../assets/logo.png";
 
@@ -10,6 +12,7 @@ interface BrandLogoProps {
 
 export function BrandLogo({ className = "", size = "md" }: BrandLogoProps) {
   const { logoUrl, loading } = useLogo();
+  const { user } = useAuth();
 
   // Typography text classes for "ClubHub"
   const textClass = {
@@ -51,8 +54,8 @@ export function BrandLogo({ className = "", size = "md" }: BrandLogoProps) {
 
   const finalLogoUrl = logoUrl || defaultLogo || "/logo.png";
 
-  return (
-    <div className={`select-none flex items-center justify-center ${gapClass} ${className}`}>
+  const content = (
+    <>
       {finalLogoUrl && (
         <img
           src={finalLogoUrl}
@@ -72,6 +75,23 @@ export function BrandLogo({ className = "", size = "md" }: BrandLogoProps) {
       <span className={`${textClass} bg-gradient-to-r from-[#FF5500] via-[#FF8800] to-[#FFCC00] bg-clip-text text-transparent font-black font-display`}>
         ClubHub
       </span>
+    </>
+  );
+
+  if (user) {
+    return (
+      <Link 
+        to="/dashboard" 
+        className={`select-none flex items-center justify-center ${gapClass} ${className} hover:opacity-90 transition-opacity cursor-pointer`}
+      >
+        {content}
+      </Link>
+    );
+  }
+
+  return (
+    <div className={`select-none flex items-center justify-center ${gapClass} ${className}`}>
+      {content}
     </div>
   );
 }

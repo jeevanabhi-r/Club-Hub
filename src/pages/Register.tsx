@@ -1,8 +1,9 @@
 import React, { useState } from "react";
 import { useAuth } from "../context/AuthContext";
-import { Sparkles, Eye, EyeOff, Lock, Mail, ArrowLeft, User, Image, Compass, Calendar, QrCode, ClipboardList } from "lucide-react";
+import { Sparkles, Lock, Mail, ArrowLeft, User, Image, Compass, Calendar, QrCode, ClipboardList } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { BrandLogo } from "../components/BrandLogo";
+import { AuthInput } from "../components/AuthInput";
 
 interface RegisterProps {
   onLoginClick: () => void;
@@ -14,8 +15,6 @@ export default function Register({ onLoginClick }: RegisterProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -203,19 +202,15 @@ export default function Register({ onLoginClick }: RegisterProps) {
                 <label className="block text-[10px] font-bold tracking-wider uppercase text-zinc-400 mb-1.5">
                   Full Name
                 </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 flex items-center pl-3">
-                    <User className="h-4 w-4 text-zinc-500" />
-                  </div>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Enter your full name"
-                    className="block w-full rounded-lg bg-zinc-900 py-2 pl-9 text-xs text-zinc-200 border border-zinc-800 focus:border-[#f26522] focus:outline-none focus:ring-1 focus:ring-[#f26522] transition-all"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                  />
-                </div>
+                <AuthInput
+                  id="name"
+                  type="text"
+                  required
+                  placeholder="Enter your full name"
+                  icon={User}
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                />
               </div>
 
               {/* Email Address */}
@@ -223,19 +218,15 @@ export default function Register({ onLoginClick }: RegisterProps) {
                 <label className="block text-[10px] font-bold tracking-wider uppercase text-zinc-400 mb-1.5">
                   Email Address
                 </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 flex items-center pl-3">
-                    <Mail className="h-4 w-4 text-zinc-500" />
-                  </div>
-                  <input
-                    type="email"
-                    required
-                    placeholder="Enter your email"
-                    className="block w-full rounded-lg bg-zinc-900 py-2 pl-9 text-xs text-zinc-200 border border-zinc-800 focus:border-[#f26522] focus:outline-none focus:ring-1 focus:ring-[#f26522] transition-all"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                  />
-                </div>
+                <AuthInput
+                  id="email"
+                  type="email"
+                  required
+                  placeholder="Enter your email"
+                  icon={Mail}
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
               </div>
 
               {/* Password */}
@@ -243,26 +234,15 @@ export default function Register({ onLoginClick }: RegisterProps) {
                 <label className="block text-[10px] font-bold tracking-wider uppercase text-zinc-400 mb-1.5">
                   Password
                 </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 flex items-center pl-3">
-                    <Lock className="h-4 w-4 text-zinc-500" />
-                  </div>
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    required
-                    placeholder="Enter your password"
-                    className="block w-full rounded-lg bg-zinc-900 py-2 pl-9 pr-8 text-xs text-zinc-200 border border-zinc-800 focus:border-[#f26522] focus:outline-none focus:ring-1 focus:ring-[#f26522] transition-all"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-zinc-500 hover:text-zinc-300"
-                  >
-                    {showPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                  </button>
-                </div>
+                <AuthInput
+                  id="password"
+                  type="password"
+                  required
+                  placeholder="Enter your password"
+                  icon={Lock}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
               </div>
 
               {/* Confirm Password */}
@@ -270,26 +250,15 @@ export default function Register({ onLoginClick }: RegisterProps) {
                 <label className="block text-[10px] font-bold tracking-wider uppercase text-zinc-400 mb-1.5">
                   Confirm Password
                 </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 flex items-center pl-3">
-                    <Lock className="h-4 w-4 text-zinc-500" />
-                  </div>
-                  <input
-                    type={showConfirmPassword ? "text" : "password"}
-                    required
-                    placeholder="Confirm your password"
-                    className="block w-full rounded-lg bg-zinc-900 py-2 pl-9 pr-8 text-xs text-zinc-200 border border-zinc-800 focus:border-[#f26522] focus:outline-none focus:ring-1 focus:ring-[#f26522] transition-all"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-zinc-500 hover:text-zinc-300"
-                  >
-                    {showConfirmPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                  </button>
-                </div>
+                <AuthInput
+                  id="confirmPassword"
+                  type="password"
+                  required
+                  placeholder="Confirm your password"
+                  icon={Lock}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                />
               </div>
             </div>
 

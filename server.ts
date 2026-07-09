@@ -153,6 +153,7 @@ interface User {
   department?: string;
   rollNumber?: string;
   phone?: string;
+  section?: string;
   about?: string;
   skills?: string[];
   socialLinks?: {
@@ -175,6 +176,7 @@ interface Event {
   description: string;
   clubId: string;
   clubName: string;
+  hostingClubId?: string;
   category: string;
   venue: string;
   date: string;
@@ -231,6 +233,11 @@ interface DatabaseSchema {
   registrations: Registration[];
   announcements: Announcement[];
   notifications: Notification[];
+  settings?: {
+    logoUrl: string | null;
+    updatedAt: string;
+    updatedBy: string;
+  };
 }
 
 const initialDatabase = (): DatabaseSchema => {
@@ -464,7 +471,12 @@ const initialDatabase = (): DatabaseSchema => {
         read: false,
         createdAt: "2026-06-28T15:00:00Z"
       }
-    ]
+    ],
+    settings: {
+      logoUrl: null,
+      updatedAt: "2026-06-28T15:00:00Z",
+      updatedBy: "usr_super_admin"
+    }
   };
 };
 
@@ -827,6 +839,210 @@ ACTIVE_SESSIONS.get = function(token: string): string | undefined {
   }
   return userId;
 };
+
+// --- WEBSITE SETTINGS ENDPOINTS ---
+app.get("/api/settings", (req, res) => {
+  try {
+    const db = getDb();
+    res.json(db.settings || { logoUrl: null });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || err });
+  }
+});
+
+app.post("/api/settings", async (req, res) => {
+  try {
+    const { logoUrl } = req.body || {};
+    const db = getDb();
+    
+    db.settings = {
+      logoUrl: logoUrl || null,
+      updatedAt: new Date().toISOString(),
+      updatedBy: "usr_super_admin"
+    };
+    
+    await saveDb(db);
+    res.json({ success: true, settings: db.settings });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || err });
+  }
+});
+
+// --- ADMIN USER MANAGEMENT ENDPOINTS ---
+app.get("/api/admin/users", (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) return res.status(401).json({ error: "Unauthorized" });
+    const token = authHeader.replace("Bearer ", "");
+    const userId = ACTIVE_SESSIONS.get(token);
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    const db = getDb();
+    const currentUser = db.users.find(u => u.id === userId);
+    if (!currentUser || currentUser.role !== "super_admin") {
+      return res.status(403).json({ error: "Access denied. Super Admin role required." });
+    }
+
+    // Return users with passwords (restricted to super_admin)
+    res.json(db.users);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || err });
+  }
+});
+
+app.put("/api/admin/users/:id/role", async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) return res.status(401).json({ error: "Unauthorized" });
+    const token = authHeader.replace("Bearer ", "");
+    const userId = ACTIVE_SESSIONS.get(token);
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    const db = getDb();
+    const currentUser = db.users.find(u => u.id === userId);
+    if (!currentUser || currentUser.role !== "super_admin") {
+      return res.status(403).json({ error: "Access denied. Super Admin role required." });
+    }
+
+    const targetUserId = req.params.id;
+    const { role, clubId } = req.body || {};
+
+    if (!role || !["super_admin", "club_admin", "student"].includes(role)) {
+      return res.status(400).json({ error: "Invalid role specified." });
+    }
+
+    if (targetUserId === currentUser.id && role !== "super_admin") {
+      return res.status(400).json({ error: "You cannot change your own super_admin role to prevent losing access." });
+    }
+
+    const targetUserIdx = db.users.findIndex(u => u.id === targetUserId);
+    if (targetUserIdx === -1) {
+      return res.status(404).json({ error: "User not found." });
+    }
+
+    const targetUser = db.users[targetUserIdx];
+    targetUser.role = role;
+
+    if (role === "club_admin") {
+      // If we got a specific clubId, use it
+      if (clubId) {
+        targetUser.clubId = clubId;
+        // Update the club's adminId
+        const club = db.clubs.find(c => c.id === clubId);
+        if (club) {
+          club.adminId = targetUserId;
+        }
+        // Remove this user from being the admin of other clubs
+        db.clubs.forEach(c => {
+          if (c.adminId === targetUserId && c.id !== clubId) {
+            c.adminId = "";
+          }
+        });
+      } else if (!targetUser.clubId) {
+        // Fallback: create a new club if they don't have one associated
+        const existingClub = db.clubs.find(c => c.adminId === targetUserId);
+        if (!existingClub) {
+          const newClubId = `club_${Date.now()}`;
+          const newClub: Club = {
+            id: newClubId,
+            name: `${targetUser.name}'s Club`,
+            description: "A newly created club for student coordinator management.",
+            logo: "🌟",
+            category: "General",
+            adminId: targetUserId,
+            approved: true,
+            memberCount: 1
+          };
+          db.clubs.push(newClub);
+          targetUser.clubId = newClubId;
+        } else {
+          targetUser.clubId = existingClub.id;
+        }
+      }
+    } else {
+      // For student or super_admin, clear clubId and club's adminId mapping
+      targetUser.clubId = "";
+      db.clubs.forEach(c => {
+        if (c.adminId === targetUserId) {
+          c.adminId = "";
+        }
+      });
+    }
+
+    await saveDb(db);
+
+    const { password, ...safeUser } = db.users[targetUserIdx];
+    res.json({ success: true, user: safeUser });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || err });
+  }
+});
+
+app.delete("/api/admin/users/:id", async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) return res.status(401).json({ error: "Unauthorized" });
+    const token = authHeader.replace("Bearer ", "");
+    const userId = ACTIVE_SESSIONS.get(token);
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    const db = getDb();
+    const currentUser = db.users.find(u => u.id === userId);
+    if (!currentUser || currentUser.role !== "super_admin") {
+      return res.status(403).json({ error: "Access denied. Super Admin role required." });
+    }
+
+    const targetUserId = req.params.id;
+    if (targetUserId === currentUser.id) {
+      return res.status(400).json({ error: "You cannot delete yourself!" });
+    }
+
+    const targetUserIdx = db.users.findIndex(u => u.id === targetUserId);
+    if (targetUserIdx === -1) {
+      return res.status(404).json({ error: "User not found." });
+    }
+
+    const targetUser = db.users[targetUserIdx];
+
+    // Clean up registrations
+    db.registrations = db.registrations.filter(r => r.studentId !== targetUserId);
+
+    // If club admin, clean up related clubs adminId mappings
+    db.clubs.forEach(c => {
+      if (c.adminId === targetUserId) {
+        c.adminId = "";
+      }
+    });
+
+    // Remove user sessions
+    for (const [sToken, sUid] of ACTIVE_SESSIONS.entries()) {
+      if (sUid === targetUserId) {
+        ACTIVE_SESSIONS.delete(sToken);
+      }
+    }
+
+    // Try to delete from Firebase Authentication using Firebase Admin SDK
+    try {
+      if (adminAny && adminAny.apps && adminAny.apps.length > 0) {
+        const adminAuth = adminAny.auth();
+        const userRecord = await adminAuth.getUserByEmail(targetUser.email.toLowerCase());
+        await adminAuth.deleteUser(userRecord.uid);
+        console.log(`[Firebase Admin Auth] Successfully deleted user from Firebase Auth: ${targetUser.email}`);
+      }
+    } catch (authErr: any) {
+      console.warn("[Firebase Admin Auth] Warning deleting user in Firebase Authentication:", authErr.message || authErr);
+    }
+
+    // Delete user from db list
+    db.users.splice(targetUserIdx, 1);
+
+    await saveDb(db);
+
+    res.json({ success: true, message: "User deleted successfully." });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || err });
+  }
+});
 
 app.get("/api/diagnostics", (req, res) => {
   try {
@@ -1312,7 +1528,7 @@ app.put("/api/users/profile", async (req, res) => {
   const userId = ACTIVE_SESSIONS.get(token);
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
-  const { name, email, department, rollNumber, phone, about, skills, socialLinks, profilePic, password } = req.body;
+  const { name, email, department, rollNumber, phone, section, about, skills, socialLinks, profilePic, password } = req.body;
   const db = getDb();
   const userIdx = db.users.findIndex(u => u.id === userId);
   if (userIdx === -1) return res.status(404).json({ error: "User not found" });
@@ -1322,6 +1538,7 @@ app.put("/api/users/profile", async (req, res) => {
   if (department !== undefined) db.users[userIdx].department = department;
   if (rollNumber !== undefined) db.users[userIdx].rollNumber = rollNumber;
   if (phone !== undefined) db.users[userIdx].phone = phone;
+  if (section !== undefined) db.users[userIdx].section = section;
   if (about !== undefined) db.users[userIdx].about = about;
   if (skills !== undefined) db.users[userIdx].skills = skills;
   if (socialLinks !== undefined) db.users[userIdx].socialLinks = socialLinks;
@@ -1423,6 +1640,21 @@ app.get("/api/events", (req, res) => {
     }
     return evt;
   });
+
+  res.json(list);
+});
+
+// Get only past/completed events efficiently from Firestore cache
+app.get("/api/events/past", (req, res) => {
+  const db = getDb();
+  let list = db.events
+    .map(evt => {
+      if (evt.status === "Upcoming" && isPastDate(evt.date)) {
+        return { ...evt, status: "Completed" };
+      }
+      return evt;
+    })
+    .filter(evt => evt.status === "Completed" || evt.status === "Cancelled" || isPastDate(evt.date));
 
   res.json(list);
 });
@@ -1731,6 +1963,24 @@ app.post("/api/events", async (req, res) => {
     return res.status(400).json({ error: "Missing required fields" });
   }
 
+  // Enforce secure club-based access control for Club Admin
+  if (user.role === "club_admin") {
+    const adminClubId = user.clubId || user.assignedClubId;
+    if (!adminClubId) {
+      return res.status(403).json({
+        success: false,
+        error: "You are not authorized to modify another club's events."
+      });
+    }
+    // If a different club ID was requested, reject immediately
+    if (rClubId && rClubId !== adminClubId) {
+      return res.status(403).json({
+        success: false,
+        error: "You are not authorized to modify another club's events."
+      });
+    }
+  }
+
   // Find club association
   let club: any = null;
 
@@ -1767,6 +2017,7 @@ app.post("/api/events", async (req, res) => {
     description,
     clubId,
     clubName,
+    hostingClubId: clubId, // Automatically save hostingClubId = clubId
     category,
     venue,
     date,
@@ -1799,6 +2050,36 @@ app.post("/api/events", async (req, res) => {
   res.json({ message: "Event created successfully!", event: newEvent });
 });
 
+// Get Single Event (with authorization checks)
+app.get("/api/events/:id", (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader) return res.status(401).json({ error: "Unauthorized" });
+  const token = authHeader.replace("Bearer ", "");
+  const userId = ACTIVE_SESSIONS.get(token);
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+  const eventId = req.params.id;
+  const db = getDb();
+  const user = db.users.find(u => u.id === userId);
+  if (!user) return res.status(404).json({ error: "User not found" });
+
+  const event = db.events.find(e => e.id === eventId);
+  if (!event) return res.status(404).json({ error: "Event not found" });
+
+  if (user.role === "club_admin") {
+    const adminClubId = user.clubId || user.assignedClubId;
+    const eventClubId = event.hostingClubId || event.clubId;
+    if (!adminClubId || eventClubId !== adminClubId) {
+      return res.status(403).json({
+        success: false,
+        error: "You are not authorized to modify another club's events."
+      });
+    }
+  }
+
+  res.json(event);
+});
+
 // Edit Event
 app.put("/api/events/:id", async (req, res) => {
   const authHeader = req.headers.authorization;
@@ -1817,12 +2098,31 @@ app.put("/api/events/:id", async (req, res) => {
   const event = db.events.find(e => e.id === eventId);
   if (!event) return res.status(404).json({ error: "Event not found" });
 
-  // Verification - Any admin can edit
-  if (user.role !== "club_admin" && user.role !== "super_admin") {
-    return res.status(403).json({ error: "Unauthorized" });
+  // Enforce secure club-based access control for Club Admin
+  if (user.role === "club_admin") {
+    const adminClubId = user.clubId || user.assignedClubId;
+    const eventClubId = event.hostingClubId || event.clubId;
+    if (!adminClubId || eventClubId !== adminClubId) {
+      return res.status(403).json({
+        success: false,
+        error: "You are not authorized to modify another club's events."
+      });
+    }
   }
 
   const { title, description, category, venue, date, time, banner, poster, maxParticipants, deadline, status, driveLink, clubId, clubName, requirements } = req.body;
+  
+  // Extra safety: block Club Admin from moving the event to another club
+  if (user.role === "club_admin") {
+    const adminClubId = user.clubId || user.assignedClubId;
+    if (clubId && clubId !== adminClubId) {
+      return res.status(403).json({
+        success: false,
+        error: "You are not authorized to modify another club's events."
+      });
+    }
+  }
+
   if (title) event.title = title;
   if (description) event.description = description;
   if (category) event.category = category;
@@ -1835,9 +2135,17 @@ app.put("/api/events/:id", async (req, res) => {
   if (deadline) event.deadline = deadline;
   if (status) event.status = status;
   if (driveLink !== undefined) event.driveLink = driveLink;
-  if (clubId) event.clubId = clubId;
+  if (clubId) {
+    event.clubId = clubId;
+    event.hostingClubId = clubId;
+  }
   if (clubName) event.clubName = clubName;
   if (requirements !== undefined) event.requirements = requirements;
+
+  // Make sure hostingClubId is set
+  if (!event.hostingClubId) {
+    event.hostingClubId = event.clubId;
+  }
 
   await saveDb(db);
   res.json({ message: "Event updated successfully!", event });
@@ -1862,6 +2170,18 @@ app.delete("/api/events/:id", async (req, res) => {
   if (eventIdx === -1) return res.status(404).json({ error: "Event not found" });
 
   const event = db.events[eventIdx];
+
+  // Enforce secure club-based access control for Club Admin
+  if (user.role === "club_admin") {
+    const adminClubId = user.clubId || user.assignedClubId;
+    const eventClubId = event.hostingClubId || event.clubId;
+    if (!adminClubId || eventClubId !== adminClubId) {
+      return res.status(403).json({
+        success: false,
+        error: "You are not authorized to modify another club's events."
+      });
+    }
+  }
 
   // Remove event registrations too
   db.registrations = db.registrations.filter(r => r.eventId !== eventId);

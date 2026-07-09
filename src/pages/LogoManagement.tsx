@@ -61,7 +61,7 @@ import { useNavigate } from "react-router-dom";
 
 export default function LogoManagement() {
   const { user } = useAuth();
-  const { logoUrl: currentLogoUrl } = useLogo();
+  const { logoUrl: currentLogoUrl, refreshLogo } = useLogo();
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -103,9 +103,9 @@ export default function LogoManagement() {
       return false;
     }
     
-    const maxSize = 5 * 1024 * 1024; // 5 MB
+    const maxSize = 1024 * 1024; // 1 MB limit for firestore database storage
     if (file.size > maxSize) {
-      toast.error("File size is too large! Maximum limit is 5 MB.");
+      toast.error("Logo file size is too large! For direct database synchronization, please upload a logo under 1 MB.");
       return false;
     }
 
@@ -182,32 +182,18 @@ export default function LogoManagement() {
     setUploadProgress(0);
 
     try {
-      // 1. Authenticate with Firebase Auth if not already authenticated
-      if (!auth.currentUser) {
-        try {
-          console.log("Authenticating anonymously with Firebase Auth...");
-          await signInAnonymously(auth);
-          console.log("Authenticated with Firebase Auth anonymously as:", auth.currentUser?.uid);
-        } catch (authErr: any) {
-          console.warn("Firebase Auth anonymous sign-in failed (proceeding anyway):", authErr);
-        }
-      }
-
       let finalUrl = currentLogoUrl;
 
       // Case 1: Logo has been cleared/removed
       if (logoPreview === null) {
-        // Clear settings collection
-        const docRef = doc(db, "settings", "website");
-        try {
-          await setDoc(docRef, {
-            logoUrl: null,
-            updatedAt: new Date().toISOString(),
-            updatedBy: user.id
-          });
-        } catch (dbErr: any) {
-          handleFirestoreError(dbErr, OperationType.WRITE, "settings/website");
-        }
+        console.log("Removing website logo on server...");
+        setUploadProgress(30);
+        await axios.post("/api/settings", {
+          logoUrl: null
+        });
+        setUploadProgress(100);
+        
+        await refreshLogo();
         toast.success("Website logo deleted successfully!");
         setSelectedFile(null);
         setIsSaving(false);
@@ -219,31 +205,14 @@ export default function LogoManagement() {
         setIsUploading(true);
         setUploadProgress(10);
 
-        console.log("Starting upload of:", selectedFile.name, "via local /api/upload");
+        console.log("Starting conversion of:", selectedFile.name, "to base64 Data URL...");
         
         const reader = new FileReader();
         const uploadPromise = new Promise<string>((resolve, reject) => {
           reader.readAsDataURL(selectedFile);
-          reader.onload = async () => {
-            try {
-              setUploadProgress(30);
-              const res = await axios.post("/api/upload", {
-                name: selectedFile.name,
-                type: selectedFile.type,
-                data: reader.result as string
-              }, {
-                onUploadProgress: (progressEvent) => {
-                  if (progressEvent.total) {
-                    const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-                    setUploadProgress(Math.min(95, 30 + Math.round(progress * 0.65)));
-                  }
-                }
-              });
-              setUploadProgress(100);
-              resolve(res.data.url);
-            } catch (err) {
-              reject(err);
-            }
+          reader.onload = () => {
+            setUploadProgress(60);
+            resolve(reader.result as string);
           };
           reader.onerror = (error) => {
             reject(error);
@@ -251,21 +220,17 @@ export default function LogoManagement() {
         });
 
         finalUrl = await uploadPromise;
-        console.log("Local upload complete. Obtained URL:", finalUrl);
+        setUploadProgress(80);
+        console.log("Base64 conversion complete.");
         
-        // Save to Firestore settings collection
-        console.log("Saving download URL to Firestore...");
-        const docRef = doc(db, "settings", "website");
-        try {
-          await setDoc(docRef, {
-            logoUrl: finalUrl,
-            updatedAt: new Date().toISOString(),
-            updatedBy: user.id
-          });
-        } catch (dbErr: any) {
-          handleFirestoreError(dbErr, OperationType.WRITE, "settings/website");
-        }
+        // Save to Firestore settings collection via server API
+        console.log("Saving base64 logo directly to server...");
+        await axios.post("/api/settings", {
+          logoUrl: finalUrl
+        });
 
+        setUploadProgress(100);
+        await refreshLogo();
         toast.success("Website logo updated successfully!");
         setSelectedFile(null);
         setIsUploading(false);
@@ -277,18 +242,7 @@ export default function LogoManagement() {
       }
     } catch (err: any) {
       console.error("Save Changes Error:", err);
-      
-      let displayError = err.message || "An error occurred while saving settings.";
-      // Parse JSON if it's from our handleFirestoreError
-      try {
-        if (err.message && err.message.trim().startsWith("{")) {
-          const parsed = JSON.parse(err.message);
-          displayError = parsed.error || displayError;
-        }
-      } catch (parseErr) {
-        // fallback to original error
-      }
-
+      let displayError = err.response?.data?.error || err.message || "An error occurred while saving settings.";
       toast.error(displayError);
       setIsUploading(false);
       setIsSaving(false);

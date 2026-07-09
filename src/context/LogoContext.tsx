@@ -1,42 +1,40 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
-import { doc, onSnapshot } from "firebase/firestore";
-import { db } from "../firebase";
+import axios from "axios";
 
 interface LogoContextType {
   logoUrl: string | null;
   loading: boolean;
+  refreshLogo: () => Promise<void>;
 }
 
-const LogoContext = createContext<LogoContextType>({ logoUrl: null, loading: true });
+const LogoContext = createContext<LogoContextType>({
+  logoUrl: null,
+  loading: true,
+  refreshLogo: async () => {},
+});
 
 export function LogoProvider({ children }: { children: React.ReactNode }) {
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const docRef = doc(db, "settings", "website");
-    const unsubscribe = onSnapshot(
-      docRef,
-      (docSnap) => {
-        if (docSnap.exists()) {
-          setLogoUrl(docSnap.data().logoUrl || null);
-        } else {
-          setLogoUrl(null);
-        }
-        setLoading(false);
-      },
-      (error) => {
-        console.warn("Error reading settings document, falling back to default logo:", error);
-        setLogoUrl(null);
-        setLoading(false);
-      }
-    );
+  const refreshLogo = async () => {
+    try {
+      const response = await axios.get("/api/settings");
+      setLogoUrl(response.data.logoUrl || null);
+    } catch (error) {
+      console.warn("Error reading settings API, falling back to default logo:", error);
+      setLogoUrl(null);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    return () => unsubscribe();
+  useEffect(() => {
+    refreshLogo();
   }, []);
 
   return (
-    <LogoContext.Provider value={{ logoUrl, loading }}>
+    <LogoContext.Provider value={{ logoUrl, loading, refreshLogo }}>
       {children}
     </LogoContext.Provider>
   );

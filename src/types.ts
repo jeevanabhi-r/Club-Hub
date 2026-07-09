@@ -6,6 +6,7 @@ export interface User {
   department?: string;
   rollNumber?: string;
   phone?: string;
+  section?: string;
   about?: string;
   skills?: string[];
   socialLinks?: {
@@ -49,6 +50,7 @@ export interface Event {
   description: string;
   clubId: string;
   clubName: string;
+  hostingClubId?: string;
   category: string;
   venue: string;
   date: string;
@@ -114,3 +116,31 @@ export interface DashboardStats {
     details: string;
   }>;
 }
+
+export const CLUB_ROLE_MAP: Record<string, string> = {
+  "club_arts": "Art's Club Admin",
+  "club_sports": "Sport's Club Admin",
+  "club_genai": "GenAI Club Admin",
+  "club_advance_tech": "Advance Tech Club Admin",
+  "club_social_media": "Social Media Club Admin"
+};
+
+export function getClubAdminRole(clubId: string, clubName?: string): string {
+  if (CLUB_ROLE_MAP[clubId]) {
+    return CLUB_ROLE_MAP[clubId];
+  }
+  const baseName = clubName || "Club";
+  let formattedName = baseName;
+  if (baseName.toLowerCase().endsWith(" club")) {
+    formattedName = baseName.substring(0, baseName.length - 5) + " Club";
+  } else if (!baseName.toLowerCase().endsWith("club")) {
+    formattedName = baseName + " Club";
+  } else {
+    formattedName = baseName.substring(0, baseName.length - 4) + "Club";
+  }
+  if (formattedName.toLowerCase() === "genai club") {
+    formattedName = "GenAI Club";
+  }
+  return `${formattedName} Admin`;
+}
+

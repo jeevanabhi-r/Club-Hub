@@ -25,6 +25,7 @@ import Profile from "./pages/Profile";
 import ClubForm from "./pages/ClubForm";
 import EventForm from "./pages/EventForm";
 import LogoManagement from "./pages/LogoManagement";
+import RoleManagement from "./pages/RoleManagement";
 
 function AppContent() {
   const { user, token, loading, logout } = useAuth();
@@ -38,6 +39,19 @@ function AppContent() {
     setAuthView("login");
     navigate("/");
   };
+
+  const lastUserRef = React.useRef<any>(null);
+
+  React.useEffect(() => {
+    if (!loading && user && token) {
+      if (!lastUserRef.current) {
+        navigate("/dashboard", { replace: true });
+      }
+      lastUserRef.current = user;
+    } else if (!user || !token) {
+      lastUserRef.current = null;
+    }
+  }, [user, token, loading, navigate]);
 
   if (loading) {
     return (
@@ -79,17 +93,47 @@ function AppContent() {
 
       {/* Main Workspace Frame */}
       <div className="flex flex-1 flex-col overflow-hidden relative">
-        <Navbar onSearch={setSearchQuery} searchQuery={searchQuery} />
+        <Navbar onSearch={setSearchQuery} searchQuery={searchQuery} onMenuClick={() => setIsSidebarOpen(true)} />
 
         <main className="flex-1 overflow-y-auto p-4 md:p-8 pb-24 md:pb-8">
           <div className="mx-auto max-w-6xl">
             <Routes>
-              <Route path="/dashboard" element={<Dashboard searchQuery={searchQuery} />} />
+              <Route 
+                path="/dashboard" 
+                element={<Dashboard searchQuery={searchQuery} />} 
+              />
               
               {/* Club Routes */}
-              <Route path="/clubs" element={<Clubs />} />
-              <Route path="/clubs/add" element={<ClubForm mode="add" />} />
-              <Route path="/clubs/edit/:id" element={<ClubForm mode="edit" />} />
+              <Route 
+                path="/clubs" 
+                element={
+                  user?.role === "super_admin" ? (
+                    <Navigate to="/dashboard" replace />
+                  ) : (
+                    <Clubs />
+                  )
+                } 
+              />
+              <Route 
+                path="/clubs/add" 
+                element={
+                  user?.role === "super_admin" ? (
+                    <Navigate to="/dashboard" replace />
+                  ) : (
+                    <ClubForm mode="add" />
+                  )
+                } 
+              />
+              <Route 
+                path="/clubs/edit/:id" 
+                element={
+                  user?.role === "super_admin" ? (
+                    <Navigate to="/dashboard" replace />
+                  ) : (
+                    <ClubForm mode="edit" />
+                  )
+                } 
+              />
 
               {/* Event Routes */}
               <Route path="/events" element={<Events filter="all" searchQuery={searchQuery} />} />
@@ -118,9 +162,23 @@ function AppContent() {
                 } 
               />
 
+              <Route 
+                path="/settings/roles" 
+                element={
+                  user?.role === "super_admin" ? (
+                    <RoleManagement />
+                  ) : (
+                    <Navigate to="/dashboard" replace />
+                  )
+                } 
+              />
+
 
               {/* Redirects */}
-              <Route path="*" element={<Navigate to="/dashboard" replace />} />
+              <Route 
+                path="*" 
+                element={<Navigate to="/dashboard" replace />} 
+              />
             </Routes>
           </div>
         </main>
@@ -129,11 +187,20 @@ function AppContent() {
         <div className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-[#121212] border-t border-zinc-900 flex items-center justify-around px-2 z-40 shadow-2xl backdrop-blur-md bg-opacity-95">
           <NavLink
             to="/dashboard"
-            className={({ isActive }) =>
-              `flex flex-col items-center justify-center flex-1 h-full py-1 transition-colors ${
-                isActive ? "text-[#f26522]" : "text-zinc-500 hover:text-zinc-400"
-              }`
-            }
+            className={({ isActive }) => {
+              const isDashboardActive = isActive || 
+                location.pathname === "/dashboard" || 
+                location.pathname === "/upcoming" || 
+                location.pathname === "/my-registrations" ||
+                (user?.role === "super_admin" && (
+                  location.pathname === "/events" || 
+                  location.pathname === "/events/add" || 
+                  location.pathname.startsWith("/events/edit/")
+                ));
+              return `flex flex-col items-center justify-center flex-1 h-full py-1 transition-colors ${
+                isDashboardActive ? "text-[#f26522]" : "text-zinc-500 hover:text-zinc-400"
+              }`;
+            }}
           >
             <Calendar className="h-4.5 w-4.5 mb-1" />
             <span className="text-[10px] font-bold tracking-wider">

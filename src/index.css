@@ -113,6 +113,59 @@ body, html, #root {
   border-radius: 12px !important; /* Premium 12px requested */
 }
 
+/* Reusable Auth Input Style Override */
+.auth-input, .dark .auth-input, input.auth-input, .dark input.auth-input {
+  display: block !important;
+  width: 100% !important;
+  height: 48px !important;
+  border-radius: 12px !important;
+  background-color: #18181b !important;
+  border: 1px solid #27272a !important; /* zinc-800 */
+  color: #e4e4e7 !important; /* zinc-200 */
+  font-size: 0.875rem !important; /* text-sm (14px) */
+  line-height: 1.25rem !important;
+  transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+.auth-input::placeholder, .dark .auth-input::placeholder, input.auth-input::placeholder, .dark input.auth-input::placeholder {
+  color: #71717a !important; /* zinc-500 */
+}
+
+/* Perfect alignment padding depending on icons */
+.auth-input.has-left-icon, .dark .auth-input.has-left-icon, input.auth-input.has-left-icon, .dark input.auth-input.has-left-icon {
+  padding-left: 56px !important; /* Starts beautifully after the 20px left icon which is at 16px */
+}
+.auth-input:not(.has-left-icon), .dark .auth-input:not(.has-left-icon), input.auth-input:not(.has-left-icon), .dark input.auth-input:not(.has-left-icon) {
+  padding-left: 16px !important;
+}
+
+.auth-input.has-right-icon, .dark .auth-input.has-right-icon, input.auth-input.has-right-icon, .dark input.auth-input.has-right-icon {
+  padding-right: 48px !important; /* Leaves plenty of space for the eye toggle icon */
+}
+.auth-input:not(.has-right-icon), .dark .auth-input:not(.has-right-icon), input.auth-input:not(.has-right-icon), .dark input.auth-input:not(.has-right-icon) {
+  padding-right: 16px !important;
+}
+
+/* Interactive focus states */
+.auth-input:focus, .dark .auth-input:focus, input.auth-input:focus, .dark input.auth-input:focus {
+  outline: none !important;
+  border-color: #f26522 !important;
+  box-shadow: 0 0 0 2px rgba(242, 101, 34, 0.2) !important; /* #f26522 with 20% opacity */
+  background-color: #18181b !important; /* keep background consistent */
+}
+
+/* Chrome/Edge/Firefox Autofill Handling */
+.auth-input:-webkit-autofill,
+.auth-input:-webkit-autofill:hover, 
+.auth-input:-webkit-autofill:focus,
+.dark input.auth-input:-webkit-autofill,
+.dark input.auth-input:-webkit-autofill:hover, 
+.dark input.auth-input:-webkit-autofill:focus {
+  -webkit-text-fill-color: #e4e4e7 !important;
+  -webkit-box-shadow: 0 0 0px 1000px #18181b inset !important;
+  transition: background-color 5000s ease-in-out 0s !important;
+}
+
 input, textarea, select {
   border-radius: 12px !important;
   transition: all 250ms cubic-bezier(0.4, 0, 0.2, 1) !important;
@@ -134,7 +187,7 @@ input.search-input {
   border-radius: 14px !important;
   background-color: #151515 !important;
   border: 1px solid #2B2B2B !important;
-  padding-left: 48px !important;
+  padding-left: 52px !important;
   padding-right: 40px !important;
   color: #FFFFFF !important;
 }

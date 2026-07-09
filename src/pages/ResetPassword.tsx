@@ -1,8 +1,9 @@
 import React, { useState } from "react";
 import axios from "axios";
-import { Eye, EyeOff, Lock, ArrowLeft, Key, Mail } from "lucide-react";
+import { Lock, ArrowLeft, Key, Mail } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { BrandLogo } from "../components/BrandLogo";
+import { AuthInput } from "../components/AuthInput";
 
 interface ResetPasswordProps {
   onLoginClick: () => void;
@@ -13,8 +14,6 @@ export default function ResetPassword({ onLoginClick }: ResetPasswordProps) {
   const [code, setCode] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
@@ -114,20 +113,15 @@ export default function ResetPassword({ onLoginClick }: ResetPasswordProps) {
               <label htmlFor="email" className="block text-xs font-semibold text-zinc-300 mb-1.5">
                 Email Address
               </label>
-              <div className="relative">
-                <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                  <Mail className="h-4 w-4 text-zinc-500" />
-                </div>
-                <input
-                  id="email"
-                  type="email"
-                  required
-                  placeholder="Enter your registered email"
-                  className="block w-full rounded-lg bg-zinc-900 py-2.5 pl-10 pr-3 text-sm text-zinc-200 placeholder-zinc-600 border border-zinc-800 focus:border-[#f26522] focus:outline-none focus:ring-1 focus:ring-[#f26522] transition-all"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
-              </div>
+              <AuthInput
+                id="email"
+                type="email"
+                required
+                placeholder="Enter your registered email"
+                icon={Mail}
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
             </div>
 
             {/* Verification Code */}
@@ -135,21 +129,17 @@ export default function ResetPassword({ onLoginClick }: ResetPasswordProps) {
               <label htmlFor="code" className="block text-xs font-semibold text-zinc-300 mb-1.5">
                 6-Digit Verification Code
               </label>
-              <div className="relative">
-                <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                  <Key className="h-4 w-4 text-zinc-500" />
-                </div>
-                <input
-                  id="code"
-                  type="text"
-                  required
-                  maxLength={6}
-                  placeholder="Enter 6-digit code"
-                  className="block w-full rounded-lg bg-zinc-900 py-2.5 pl-10 pr-3 text-sm text-zinc-200 placeholder-zinc-600 border border-zinc-800 focus:border-[#f26522] focus:outline-none focus:ring-1 focus:ring-[#f26522] transition-all font-mono tracking-widest text-center"
-                  value={code}
-                  onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
-                />
-              </div>
+              <AuthInput
+                id="code"
+                type="text"
+                required
+                maxLength={6}
+                placeholder="Enter 6-digit code"
+                icon={Key}
+                className="font-mono tracking-widest text-center"
+                value={code}
+                onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+              />
             </div>
 
             {/* New Password */}
@@ -157,27 +147,15 @@ export default function ResetPassword({ onLoginClick }: ResetPasswordProps) {
               <label htmlFor="pass" className="block text-xs font-semibold text-zinc-300 mb-1.5">
                 New Password
               </label>
-              <div className="relative">
-                <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                  <Lock className="h-4 w-4 text-zinc-500" />
-                </div>
-                <input
-                  id="pass"
-                  type={showPassword ? "text" : "password"}
-                  required
-                  placeholder="Enter your new password"
-                  className="block w-full rounded-lg bg-zinc-900 py-2.5 pl-10 pr-10 text-sm text-zinc-200 placeholder-zinc-600 border border-zinc-800 focus:border-[#f26522] focus:outline-none focus:ring-1 focus:ring-[#f26522] transition-all"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-zinc-500 hover:text-zinc-300 bg-transparent border-0 cursor-pointer"
-                >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              </div>
+              <AuthInput
+                id="pass"
+                type="password"
+                required
+                placeholder="Enter your new password"
+                icon={Lock}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
             </div>
 
             {/* Confirm Password */}
@@ -185,27 +163,15 @@ export default function ResetPassword({ onLoginClick }: ResetPasswordProps) {
               <label htmlFor="confirm-pass" className="block text-xs font-semibold text-zinc-300 mb-1.5">
                 Confirm Password
               </label>
-              <div className="relative">
-                <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                  <Lock className="h-4 w-4 text-zinc-500" />
-                </div>
-                <input
-                  id="confirm-pass"
-                  type={showConfirmPassword ? "text" : "password"}
-                  required
-                  placeholder="Confirm your new password"
-                  className="block w-full rounded-lg bg-zinc-900 py-2.5 pl-10 pr-10 text-sm text-zinc-200 placeholder-zinc-600 border border-zinc-800 focus:border-[#f26522] focus:outline-none focus:ring-1 focus:ring-[#f26522] transition-all"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-zinc-500 hover:text-zinc-300 bg-transparent border-0 cursor-pointer"
-                >
-                  {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              </div>
+              <AuthInput
+                id="confirm-pass"
+                type="password"
+                required
+                placeholder="Confirm your new password"
+                icon={Lock}
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+              />
             </div>
 
             <div className="pt-2">

@@ -1,24 +1,38 @@
 import React, { useState, useRef } from "react";
 import { useAuth } from "../context/AuthContext";
 import axios from "axios";
-import { Camera, Eye, EyeOff, Trash2, User } from "lucide-react";
+import { Camera, Trash2, User, RefreshCw, Mail, Lock, Phone, Layers } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { ConfirmModal } from "../components/ConfirmModal";
+import { getClubAdminRole } from "../types";
+import { auth } from "../firebase";
+import { AuthInput } from "../components/AuthInput";
+import { 
+  EmailAuthProvider, 
+  reauthenticateWithCredential, 
+  updatePassword, 
+  signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword 
+} from "firebase/auth";
 
 export default function Profile() {
   const { user, updateUser } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // States matching user profiles (ONLY name, email, profilePic)
+  // States matching user profiles (name, email, profilePic, phone, section)
   const [name, setName] = useState(user?.name || "");
   const [email, setEmail] = useState(user?.email || "");
   const [profilePic, setProfilePic] = useState(user?.profilePic || "");
+  const [phone, setPhone] = useState(user?.phone || "");
+  const [section, setSection] = useState(user?.section || "");
 
   React.useEffect(() => {
     if (user) {
       setName(user.name || "");
       setEmail(user.email || "");
       setProfilePic(user.profilePic || "");
+      setPhone(user.phone || "");
+      setSection(user.section || "");
     }
   }, [user]);
 
@@ -27,7 +41,6 @@ export default function Profile() {
   // Password States
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
-  const [showPass, setShowPass] = useState(false);
 
   const [isLoading, setIsLoading] = useState(false);
   const [isPassLoading, setIsPassLoading] = useState(false);
@@ -55,6 +68,8 @@ export default function Profile() {
     const updatePayload = {
       name,
       email,
+      phone,
+      section,
       profilePic
     };
 
@@ -71,21 +86,123 @@ export default function Profile() {
 
   const handleUpdatePassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newPassword) {
-      toast.error("Please specify a new password");
+    
+    // 2. Validate New Password
+    if (!currentPassword) {
+      toast.error("Please enter your current password.");
       return;
     }
+    if (!newPassword) {
+      toast.error("Please enter a new password.");
+      return;
+    }
+    if (newPassword.length < 8) {
+      toast.error("New password must be at least 8 characters long.");
+      return;
+    }
+    if (newPassword === currentPassword) {
+      toast.error("New password cannot be the same as the current password.");
+      return;
+    }
+
+    // 4. Loading State
     setIsPassLoading(true);
 
     try {
+      // 1. Verify Current Password
+      let currentUser = auth.currentUser;
+      const emailToUse = user?.email || "";
+
+      let firebaseSuccess = false;
+      try {
+        if (!currentUser) {
+          try {
+            // Attempt sign-in to populate auth.currentUser
+            const userCredential = await signInWithEmailAndPassword(auth, emailToUse, currentPassword);
+            currentUser = userCredential.user;
+          } catch (signInErr: any) {
+            // If the user does not exist in Firebase Auth yet, we can create them
+            if (signInErr.code === "auth/user-not-found" || signInErr.message?.includes("user-not-found")) {
+              const userCredential = await createUserWithEmailAndPassword(auth, emailToUse, currentPassword);
+              currentUser = userCredential.user;
+            } else {
+              throw signInErr;
+            }
+          }
+        } else {
+          // If already signed in, re-authenticate using the credentials
+          const credential = EmailAuthProvider.credential(emailToUse, currentPassword);
+          await reauthenticateWithCredential(currentUser, credential);
+        }
+
+        // 3. Update Password
+        if (!currentUser) {
+          throw new Error("auth/user-not-found");
+        }
+
+        await updatePassword(currentUser, newPassword);
+        firebaseSuccess = true;
+      } catch (fbErr: any) {
+        console.warn("Firebase Auth operation failed/unsupported. Attempting backend auth fallback...", fbErr);
+        const isUnsupported = 
+          fbErr.code === "auth/operation-not-allowed" || 
+          fbErr.message?.includes("operation-not-allowed") ||
+          fbErr.code === "auth/configuration-not-found" ||
+          fbErr.message?.includes("configuration-not-found");
+
+        if (isUnsupported) {
+          // Verify current password by making an auth request to our login endpoint
+          try {
+            await axios.post("/api/auth/login", { email: emailToUse, password: currentPassword });
+          } catch (loginErr: any) {
+            // If backend login fails, then the current password is wrong
+            throw { code: "auth/wrong-password", message: "Current password is incorrect." };
+          }
+        } else {
+          // Re-throw other authentic validation errors (e.g. wrong-password)
+          throw fbErr;
+        }
+      }
+
+      // Keep backend json database in sync as well
       await axios.put("/api/users/profile", {
         password: newPassword
       });
-      toast.success("Password updated successfully!");
+
+      toast.success("Password updated successfully.");
       setCurrentPassword("");
       setNewPassword("");
     } catch (err: any) {
-      toast.error(err.response?.data?.error || "Failed to update security credentials");
+      console.error("Firebase Authentication password change error:", err);
+      
+      const errorCode = err.code || "";
+      const errorMessage = err.message || "";
+
+      if (
+        errorCode === "auth/wrong-password" ||
+        errorCode === "auth/invalid-credential" ||
+        errorMessage.includes("wrong-password") ||
+        errorMessage.includes("invalid-credential")
+      ) {
+        toast.error("Current password is incorrect.");
+      } else if (
+        errorCode === "auth/too-many-requests" ||
+        errorMessage.includes("too-many-requests")
+      ) {
+        toast.error("Too many attempts. Please try again later.");
+      } else if (
+        errorCode === "auth/requires-recent-login" ||
+        errorMessage.includes("requires-recent-login")
+      ) {
+        toast.error("Please login again.");
+      } else if (
+        errorCode === "auth/network-request-failed" ||
+        errorMessage.includes("network-request-failed")
+      ) {
+        toast.error("Check your internet connection.");
+      } else {
+        toast.error("Something went wrong.");
+      }
     } finally {
       setIsPassLoading(false);
     }
@@ -97,6 +214,8 @@ export default function Profile() {
       const res = await axios.put("/api/users/profile", {
         name,
         email,
+        phone,
+        section,
         profilePic: ""
       });
       updateUser(res.data.user);
@@ -109,10 +228,23 @@ export default function Profile() {
   return (
     <div className="max-w-4xl mx-auto space-y-6 animate-in fade-in duration-200 text-zinc-200 py-4">
       {/* Header Block */}
-      <div>
-        <h1 className="font-display text-2xl font-black tracking-tight text-white">
-          Profile Settings
-        </h1>
+      <div className="flex items-center justify-between flex-wrap gap-4">
+        <div>
+          <h1 className="font-display text-2xl font-black tracking-tight text-white">
+            Profile Settings
+          </h1>
+          <p className="text-xs text-zinc-500 mt-1">
+            Manage your personal credentials, contact info, and workspace preferences.
+          </p>
+        </div>
+        {/* Profile Badge */}
+        <div className="rounded-lg bg-zinc-900 border border-zinc-800 px-3 py-1.5 text-xs font-bold text-[#f26522] tracking-wide uppercase">
+          {user?.role === "super_admin" 
+            ? "Super Admin" 
+            : user?.role === "club_admin" 
+              ? getClubAdminRole(user?.clubId || user?.assignedClubId || "", user?.clubName || user?.assignedClubName)
+              : "Student"}
+        </div>
       </div>
 
       <div className="space-y-6">
@@ -177,10 +309,12 @@ export default function Profile() {
               <label className="block text-xs font-bold text-zinc-400 mb-2">
                 Full Name
               </label>
-              <input
+              <AuthInput
+                id="name"
                 type="text"
                 required
-                className="w-full rounded-lg bg-[#18181b] border border-zinc-800 px-3.5 py-2.5 text-xs text-zinc-200 focus:outline-none focus:ring-1 focus:ring-[#f26522]"
+                placeholder="Enter your full name"
+                icon={User}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
               />
@@ -191,13 +325,58 @@ export default function Profile() {
               <label className="block text-xs font-bold text-zinc-400 mb-2">
                 Email Address
               </label>
-              <input
+              <AuthInput
+                id="email"
                 type="email"
                 required
-                className="w-full rounded-lg bg-[#18181b] border border-zinc-800 px-3.5 py-2.5 text-xs text-zinc-200 focus:outline-none focus:ring-1 focus:ring-[#f26522]"
+                placeholder="Enter your email address"
+                icon={Mail}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
               />
+            </div>
+
+            {/* Phone Number */}
+            <div>
+              <label className="block text-xs font-bold text-zinc-400 mb-2">
+                Phone Number
+              </label>
+              <AuthInput
+                id="phone"
+                type="tel"
+                placeholder="Enter your phone number"
+                icon={Phone}
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+              />
+            </div>
+
+            {/* Section */}
+            <div>
+              <label className="block text-xs font-bold text-zinc-400 mb-2">
+                Section
+              </label>
+              <div className="relative w-full">
+                <Layers
+                  size={20}
+                  className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none z-10"
+                />
+                <select
+                  id="section"
+                  value={section}
+                  onChange={(e) => setSection(e.target.value)}
+                  className="auth-input has-left-icon appearance-none w-full bg-[#18181b] text-zinc-200 border border-[#27272a] rounded-lg h-[48px] py-3 pl-14 pr-10 text-sm focus:outline-none focus:border-[#f26522] focus:ring-1 focus:ring-[#f26522] transition-all"
+                >
+                  <option value="">No Section</option>
+                  <option value="S1">S1</option>
+                  <option value="S2">S2</option>
+                </select>
+                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-zinc-500">
+                  <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+                    <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/>
+                  </svg>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -224,10 +403,12 @@ export default function Profile() {
               <label className="block text-xs font-bold text-zinc-400 mb-2">
                 Current Password
               </label>
-              <input
+              <AuthInput
+                id="currentPassword"
                 type="password"
+                required
                 placeholder="••••••••"
-                className="w-full rounded-lg bg-[#18181b] border border-zinc-800 px-3.5 py-2.5 text-xs text-zinc-200 focus:outline-none focus:ring-1 focus:ring-[#f26522]"
+                icon={Lock}
                 value={currentPassword}
                 onChange={(e) => setCurrentPassword(e.target.value)}
               />
@@ -238,22 +419,15 @@ export default function Profile() {
               <label className="block text-xs font-bold text-zinc-400 mb-2">
                 New Password
               </label>
-              <div className="relative">
-                <input
-                  type={showPass ? "text" : "password"}
-                  placeholder="••••••••"
-                  className="w-full rounded-lg bg-[#18181b] border border-zinc-800 px-3.5 py-2.5 pr-10 text-xs text-zinc-200 focus:outline-none focus:ring-1 focus:ring-[#f26522]"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPass(!showPass)}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-zinc-500 hover:text-zinc-300"
-                >
-                  {showPass ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              </div>
+              <AuthInput
+                id="newPassword"
+                type="password"
+                required
+                placeholder="••••••••"
+                icon={Lock}
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+              />
             </div>
           </div>
 
@@ -261,9 +435,10 @@ export default function Profile() {
             <button
               type="submit"
               disabled={isPassLoading}
-              className="rounded-lg bg-[#374151] hover:bg-[#4b5563] px-6 py-2 text-xs font-bold text-white transition-all disabled:opacity-50 cursor-pointer"
+              className="flex items-center gap-2 rounded-lg bg-[#374151] hover:bg-[#4b5563] px-6 py-2 text-xs font-bold text-white transition-all disabled:opacity-50 cursor-pointer"
             >
-              {isPassLoading ? "Updating..." : "Update Password"}
+              {isPassLoading && <RefreshCw className="h-3 w-3 animate-spin" />}
+              <span>{isPassLoading ? "Updating..." : "Update Password"}</span>
             </button>
           </div>
         </form>

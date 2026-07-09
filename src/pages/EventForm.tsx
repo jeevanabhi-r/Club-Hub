@@ -6,6 +6,7 @@ import { toast } from "react-hot-toast";
 import { Club, Event } from "../types";
 import { useAuth } from "../context/AuthContext";
 import { formatToDDMMYY } from "../utils/date";
+import { canEditEvent } from "../utils/permissions";
 
 interface EventFormProps {
   mode: "add" | "edit";
@@ -18,6 +19,7 @@ export default function EventForm({ mode }: EventFormProps) {
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(mode === "edit");
   const [clubs, setClubs] = useState<Club[]>([]);
+  const [accessDenied, setAccessDenied] = useState(false);
 
   // Form Fields State
   const [title, setTitle] = useState("");
@@ -48,7 +50,12 @@ export default function EventForm({ mode }: EventFormProps) {
       try {
         const res = await axios.get("/api/clubs");
         setClubs(res.data);
-        if (res.data.length > 0 && mode === "add") {
+        if (user && user.role === "club_admin") {
+          const adminClubId = user.clubId || user.assignedClubId;
+          if (adminClubId) {
+            setClubId(adminClubId);
+          }
+        } else if (res.data.length > 0 && mode === "add") {
           // Keep hosting club select is default option and admin can select as per their choice
           setClubId("");
         }
@@ -59,12 +66,25 @@ export default function EventForm({ mode }: EventFormProps) {
 
     fetchClubs();
 
+    if (mode === "add") {
+      if (user && user.role !== "super_admin" && user.role !== "club_admin") {
+        setAccessDenied(true);
+      }
+    }
+
     if (mode === "edit" && id) {
       const fetchEventDetails = async () => {
         try {
           const res = await axios.get("/api/events");
           const found = res.data.find((e: Event) => e.id === id);
           if (found) {
+            // Secure URL Access Check on frontend
+            if (!canEditEvent(user, found)) {
+              setAccessDenied(true);
+              setFetching(false);
+              return;
+            }
+
             setTitle(found.title || "");
             setClubId(found.clubId || "");
             setCategory(found.category || "Coding");
@@ -150,22 +170,27 @@ export default function EventForm({ mode }: EventFormProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title || !clubId || !description || !venue || !date || !time) {
+    let finalClubId = clubId;
+    if (user && user.role === "club_admin") {
+      finalClubId = user.clubId || user.assignedClubId || "";
+    }
+
+    if (!title || !finalClubId || !description || !venue || !date || !time) {
       toast.error("Please fill in all required fields");
       return;
     }
 
     try {
       setLoading(true);
-      const hostClub = clubs.find(c => c.id === clubId);
-      const clubName = hostClub ? hostClub.name : "Unknown Club";
+      const hostClub = clubs.find(c => c.id === finalClubId);
+      const clubName = hostClub ? hostClub.name : (user?.clubName || "Unknown Club");
 
       const formattedDate = formatToDDMMYY(date);
       const formattedDeadline = deadline ? formatToDDMMYY(deadline) : formattedDate;
 
       const payload = {
         title,
-        clubId,
+        clubId: finalClubId,
         clubName,
         category,
         description,
@@ -201,6 +226,31 @@ export default function EventForm({ mode }: EventFormProps) {
     return (
       <div className="flex justify-center items-center h-64">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-500"></div>
+      </div>
+    );
+  }
+
+  if (accessDenied) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 px-4 rounded-xl border border-zinc-800 bg-[#121212] max-w-lg mx-auto text-center space-y-4 animate-in fade-in duration-200 mt-10">
+        <div className="rounded-full bg-rose-500/10 p-3 text-rose-500 border border-rose-500/20">
+          <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m0-6V9m0-6a9 9 0 11-12 0 9 9 0 0112 0z" />
+          </svg>
+        </div>
+        <h2 className="font-display text-xl font-bold text-white">Access Denied</h2>
+        <p className="text-xs text-zinc-400 max-w-sm">
+          You can only manage your own club's events.
+        </p>
+        <div className="pt-2">
+          <Link
+            to="/events"
+            className="inline-flex items-center space-x-2 rounded-lg bg-zinc-900 border border-zinc-800 px-4 py-2 text-xs font-semibold text-zinc-350 hover:bg-zinc-800 hover:text-zinc-200 transition-all"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" />
+            <span>Back to Events</span>
+          </Link>
+        </div>
       </div>
     );
   }
@@ -257,17 +307,23 @@ export default function EventForm({ mode }: EventFormProps) {
                   <label className="block text-[10px] font-bold uppercase text-zinc-400 mb-1.5">
                     Hosting Club / Organization <span className="text-rose-500">*</span>
                   </label>
-                  <select
-                    value={clubId}
-                    onChange={(e) => setClubId(e.target.value)}
-                    required
-                    className="w-full rounded-lg bg-zinc-950 py-2.5 px-3 text-xs text-zinc-350 border border-zinc-850 focus:border-emerald-500 focus:outline-none"
-                  >
-                    <option value="">Select hosting club...</option>
-                    {clubs.map(c => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
-                  </select>
+                  {user?.role === "club_admin" ? (
+                    <div className="w-full rounded-lg bg-zinc-950/60 py-2.5 px-3 text-xs text-zinc-400 border border-zinc-850 select-none">
+                      {user.clubName || clubs.find(c => c.id === clubId)?.name || "Assigned Club"}
+                    </div>
+                  ) : (
+                    <select
+                      value={clubId}
+                      onChange={(e) => setClubId(e.target.value)}
+                      required
+                      className="w-full rounded-lg bg-zinc-950 py-2.5 px-3 text-xs text-zinc-350 border border-zinc-850 focus:border-emerald-500 focus:outline-none"
+                    >
+                      <option value="">Select hosting club...</option>
+                      {clubs.map(c => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </select>
+                  )}
                 </div>
 
                 <div>

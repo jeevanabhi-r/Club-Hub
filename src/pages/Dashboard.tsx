@@ -24,6 +24,7 @@ import { DashboardStats, Club, Event, Registration } from "../types";
 import { CardSkeleton, ListSkeleton } from "../components/Skeletons";
 import { toast } from "react-hot-toast";
 import { formatToDDMMYY, parseEventDate } from "../utils/date";
+import { canEditEvent } from "../utils/permissions";
 import CreateEventModal from "../components/CreateEventModal";
 import { ConfirmModal } from "../components/ConfirmModal";
 
@@ -69,10 +70,11 @@ export default function Dashboard({ searchQuery = "" }: DashboardProps) {
       setClubs(clubsRes.data);
 
       const eventsRes = await axios.get("/api/events");
-      setEvents(eventsRes.data);
+      let loadedEvents = eventsRes.data;
+      setEvents(loadedEvents);
 
       if (selectedEventDetails) {
-        const updatedSelected = eventsRes.data.find((e: Event) => e.id === selectedEventDetails.id);
+        const updatedSelected = loadedEvents.find((e: Event) => e.id === selectedEventDetails.id);
         if (updatedSelected) {
           setSelectedEventDetails(updatedSelected);
         } else {
@@ -151,8 +153,8 @@ export default function Dashboard({ searchQuery = "" }: DashboardProps) {
     )
     .sort((a, b) => parseEventDate(a.date) - parseEventDate(b.date));
 
-  // If the user is a Super Admin, Club Admin, or Student, show the mockup "Event Management" screen (Image 1)
-  if (user?.role === "super_admin" || user?.role === "club_admin" || user?.role === "student") {
+  // If the user is a Club Admin or Student, show the mockup "Event Management" screen (Image 1)
+  if (user?.role === "club_admin" || user?.role === "student") {
     const isAdmin = user?.role === "super_admin" || user?.role === "club_admin";
     return (
       <div className="space-y-6 animate-in fade-in duration-200 text-zinc-200">
@@ -208,6 +210,7 @@ export default function Dashboard({ searchQuery = "" }: DashboardProps) {
             {filteredUpcoming.map(evt => {
               const isFull = evt.registeredCount >= evt.maxParticipants;
               const isRegistered = studentRegs.some(r => r.eventId === evt.id);
+              const canManageEvent = canEditEvent(user, evt);
               return (
                 <div 
                   key={evt.id} 
@@ -259,37 +262,46 @@ export default function Dashboard({ searchQuery = "" }: DashboardProps) {
                     </div>
 
                     {/* Action Buttons styled dynamically per role */}
-                    <div className="flex items-center gap-2 pt-1 shrink-0">
+                    <div className="flex items-center gap-2 pt-1 shrink-0 w-full">
                       {isAdmin ? (
-                        <>
-                          <button
-                            onClick={() => setSelectedEventDetails(evt)}
-                            className="flex-1 rounded-lg bg-[#2c2c2e] hover:bg-[#3a3a3c] py-2 text-xs font-bold text-white text-center transition-colors"
-                          >
-                            View Details
-                          </button>
-                          {isAdmin && (
-                            <>
-                              <button
-                                onClick={() => {
-                                  setEventToEdit(evt);
-                                  setIsCreateEventOpen(true);
-                                }}
-                                className="rounded-lg p-2 bg-[#2c2c2e] hover:bg-[#3a3a3c] text-zinc-300 transition-colors"
-                                title="Edit Event"
-                              >
-                                <Edit className="h-3.5 w-3.5" />
-                              </button>
-                              <button
-                                onClick={() => setDeleteEventId(evt.id)}
-                                className="rounded-lg p-2 bg-[#2c2c2e] hover:bg-[#3a3a3c] text-rose-400 hover:text-rose-300 transition-colors"
-                                title="Delete Event"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
-                            </>
+                        <div className="flex flex-col w-full space-y-2">
+                          <div className="flex items-center gap-2 w-full">
+                            <button
+                              onClick={() => setSelectedEventDetails(evt)}
+                              className="flex-1 rounded-lg bg-[#2c2c2e] hover:bg-[#3a3a3c] py-2 text-xs font-bold text-white text-center transition-colors"
+                            >
+                              View Details
+                            </button>
+                            {canManageEvent && (
+                              <>
+                                <button
+                                  onClick={() => {
+                                    setEventToEdit(evt);
+                                    setIsCreateEventOpen(true);
+                                  }}
+                                  className="rounded-lg p-2 bg-[#2c2c2e] hover:bg-[#3a3a3c] text-zinc-300 transition-colors"
+                                  title="Edit Event"
+                                >
+                                  <Edit className="h-3.5 w-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => setDeleteEventId(evt.id)}
+                                  className="rounded-lg p-2 bg-[#2c2c2e] hover:bg-[#3a3a3c] text-rose-400 hover:text-rose-300 transition-colors"
+                                  title="Delete Event"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </>
+                            )}
+                          </div>
+                          {user?.role === "club_admin" && !canManageEvent && (
+                            <div className="flex items-center justify-center gap-1.5 rounded-lg bg-[#2c2c2e]/60 border border-zinc-800 py-1.5 px-3 text-[10px] font-bold text-zinc-400 tracking-wide uppercase">
+                              <span>Read Only</span>
+                              <span className="text-zinc-600">•</span>
+                              <span>Managed by {evt.clubName}</span>
+                            </div>
                           )}
-                        </>
+                        </div>
                       ) : (
                         <div className="flex items-center gap-2 w-full">
                           <button
