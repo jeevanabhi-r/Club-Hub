@@ -95,6 +95,7 @@ if (!fs.existsSync(UPLOADS_DIR)) {
 }
 app.use("/uploads", express.static(UPLOADS_DIR));
 app.use("/assets/uploads", express.static(UPLOADS_DIR));
+app.use(express.static(path.join(process.cwd(), "public")));
 
 app.post("/api/upload", (req, res) => {
   const { name, type, data } = req.body;

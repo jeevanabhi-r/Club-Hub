@@ -34,7 +34,7 @@ export function LogoProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    const iconUrl = logoUrl || "/logo.png";
+    const iconUrl = logoUrl || "/favicon.png";
     const links = document.querySelectorAll("link[rel*='icon']");
     if (links.length > 0) {
       links.forEach((link) => {

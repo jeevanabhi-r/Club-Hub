@@ -338,8 +338,8 @@ export default function Dashboard({ searchQuery = "" }: DashboardProps) {
           const isPast = selectedEventDetails.status === "Completed" || selectedEventDetails.status === "Cancelled";
           return (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-              <div className="w-full max-w-lg rounded-2xl border border-zinc-800 bg-[#121212] p-6 shadow-2xl animate-in fade-in zoom-in duration-200">
-                <div className="flex items-center justify-between border-b border-zinc-900 pb-3 mb-4">
+              <div className="w-full max-w-lg max-h-[90vh] flex flex-col rounded-2xl border border-zinc-800 bg-[#121212] p-6 shadow-2xl animate-in fade-in zoom-in duration-200">
+                <div className="flex items-center justify-between border-b border-zinc-900 pb-3 mb-4 shrink-0">
                   <h3 className="font-display font-bold text-white text-sm">
                     Event specifications
                   </h3>
@@ -351,7 +351,7 @@ export default function Dashboard({ searchQuery = "" }: DashboardProps) {
                   </button>
                 </div>
 
-                <div className="space-y-4 text-xs text-zinc-300">
+                <div className="space-y-4 text-xs text-zinc-300 overflow-y-auto pr-1">
                   <div className="relative w-full h-40 bg-zinc-950/40 rounded-lg border border-zinc-800 flex items-center justify-center overflow-hidden">
                     {selectedEventDetails.banner ? (
                       <img 
