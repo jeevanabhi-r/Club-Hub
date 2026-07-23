@@ -33,6 +33,22 @@ export function LogoProvider({ children }: { children: React.ReactNode }) {
     refreshLogo();
   }, []);
 
+  useEffect(() => {
+    const iconUrl = logoUrl || "/logo.png";
+    const links = document.querySelectorAll("link[rel*='icon']");
+    if (links.length > 0) {
+      links.forEach((link) => {
+        (link as HTMLLinkElement).href = iconUrl;
+      });
+    } else {
+      const newLink = document.createElement("link");
+      newLink.rel = "icon";
+      newLink.type = "image/png";
+      newLink.href = iconUrl;
+      document.head.appendChild(newLink);
+    }
+  }, [logoUrl]);
+
   return (
     <LogoContext.Provider value={{ logoUrl, loading, refreshLogo }}>
       {children}

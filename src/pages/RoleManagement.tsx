@@ -78,7 +78,7 @@ export default function RoleManagement() {
       const today = new Date().toISOString().split("T")[0];
       const filename = `ClubHub_Users_${today}.xlsx`;
 
-      const worksheetData = firestoreUsers.map((u) => {
+      const worksheetData = firestoreUsers.map((u, idx) => {
         let regDateStr = "—";
         if (u.id && u.id.startsWith("usr_")) {
           const ts = parseInt(u.id.replace("usr_", ""));
@@ -105,6 +105,7 @@ export default function RoleManagement() {
           : "Active";
 
         return {
+          "S.No": idx,
           "User ID": u.id || "—",
           "Full Name": u.name || "—",
           "Email": u.email || "—",
@@ -124,6 +125,7 @@ export default function RoleManagement() {
 
       // Auto-fit column widths
       const maxLengths = {
+        "S.No": 8,
         "User ID": 20,
         "Full Name": 25,
         "Email": 30,
@@ -359,7 +361,7 @@ export default function RoleManagement() {
           <input
             type="text"
             placeholder="Search users by name, email, or roll number..."
-            className="w-full rounded-[12px] bg-zinc-950/60 py-2.5 pl-14 pr-12 text-xs text-zinc-200 placeholder-zinc-500 border border-zinc-900 focus:border-[#f26522] focus:outline-none transition-all duration-200"
+            className="search-input w-full rounded-[12px] bg-zinc-950/60 py-2.5 pl-14 pr-12 text-xs text-zinc-200 placeholder-zinc-500 border border-zinc-900 focus:border-[#f26522] focus:outline-none transition-all duration-200"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
@@ -412,6 +414,7 @@ export default function RoleManagement() {
           <table className="w-full text-left border-collapse text-xs">
             <thead>
               <tr className="bg-zinc-950 text-zinc-400 font-semibold border-b border-zinc-900">
+                <th className="p-4 w-12 text-center">S.No</th>
                 <th className="p-4">User</th>
                 <th className="p-4">Email</th>
                 <th className="p-4">Roll Number</th>
@@ -422,12 +425,17 @@ export default function RoleManagement() {
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-900">
-              {filteredUsers.map((u) => {
+              {filteredUsers.map((u, index) => {
                 const isSelf = u.id === user?.id;
                 const isUpdating = updatingUserId === u.id;
 
                 return (
                   <tr key={u.id} className={`hover:bg-zinc-900/20 transition-all ${isSelf ? 'bg-[#f26522]/5' : ''}`}>
+                    
+                    {/* S.No */}
+                    <td className="p-4 text-center font-mono text-zinc-500 w-12 border-r border-zinc-900/40">
+                      {index}
+                    </td>
                     
                     {/* User Info block (Avatar and Name) */}
                     <td className="p-4">

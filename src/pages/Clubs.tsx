@@ -98,7 +98,7 @@ export default function Clubs() {
           <input
             type="text"
             placeholder="Search clubs by keyword..."
-            className="w-full rounded-lg bg-slate-950/60 py-2.5 pl-14 pr-12 text-xs text-slate-200 placeholder-slate-650 border border-slate-800 focus:border-emerald-500 focus:outline-none"
+            className="search-input w-full rounded-lg bg-slate-950/60 py-2.5 pl-14 pr-12 text-xs text-slate-200 placeholder-slate-650 border border-slate-800 focus:border-emerald-500 focus:outline-none"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />

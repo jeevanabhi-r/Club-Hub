@@ -105,6 +105,7 @@ export interface DashboardStats {
   upcomingEvents: number;
   pastEvents: number;
   students: number;
+  totalStudentsAndAdmins?: number; // non-super_admin users
   clubs: number;
   pendingClubs: number;
   totalRegistrations: number;

@@ -423,7 +423,7 @@ export default function ClubForm({ mode }: ClubFormProps) {
                     type="email"
                     placeholder="acm@college.edu"
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    onChange={(e) => setEmail(e.target.value.toLowerCase())}
                     className="w-full rounded-lg bg-zinc-950 py-2 px-2.5 text-xs text-zinc-200 border border-zinc-850 focus:border-emerald-500 focus:outline-none"
                   />
                 </div>

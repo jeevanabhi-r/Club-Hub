@@ -18,7 +18,14 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 // Initialize Axios authorization header immediately if token is present in localStorage
-const initialToken = localStorage.getItem("clubhub_token");
+const getSafeInitialToken = () => {
+  const t = localStorage.getItem("clubhub_token");
+  if (!t || t === "undefined" || t === "null") {
+    return null;
+  }
+  return t;
+};
+const initialToken = getSafeInitialToken();
 if (initialToken) {
   axios.defaults.headers.common["Authorization"] = `Bearer ${initialToken}`;
 }

@@ -126,7 +126,7 @@ export default function Students() {
           <input
             type="text"
             placeholder="Search registered students or events..."
-            className="w-full rounded-lg bg-slate-950/60 py-2.5 pl-14 pr-12 text-xs text-slate-200 placeholder-slate-600 border border-slate-800 focus:border-emerald-500 focus:outline-none"
+            className="search-input w-full rounded-lg bg-slate-950/60 py-2.5 pl-14 pr-12 text-xs text-slate-200 placeholder-slate-600 border border-slate-800 focus:border-emerald-500 focus:outline-none"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />

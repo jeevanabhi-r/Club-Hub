@@ -817,13 +817,22 @@ const ACTIVE_SESSIONS = new Map<string, string>(); // token -> userId
 
 // Override Map.get to support fallback session recovery automatically for all endpoints
 const originalGet = ACTIVE_SESSIONS.get.bind(ACTIVE_SESSIONS);
+const originalSet = ACTIVE_SESSIONS.set.bind(ACTIVE_SESSIONS);
+
+ACTIVE_SESSIONS.set = function(token: string, userId: string): Map<string, string> {
+  if (!token) return ACTIVE_SESSIONS;
+  const cleaned = token.replace(/['"]/g, "").trim();
+  return originalSet(cleaned, userId);
+};
+
 ACTIVE_SESSIONS.get = function(token: string): string | undefined {
   if (!token) return undefined;
-  let userId = originalGet(token);
+  const cleaned = token.replace(/['"]/g, "").trim();
+  let userId = originalGet(cleaned);
   if (!userId) {
-    if (token.startsWith("token_")) {
+    if (cleaned.startsWith("token_")) {
       // Remove "token_" prefix
-      let parsedId = token.substring(6);
+      let parsedId = cleaned.substring(6);
       // Remove "_timestamp" suffix from the end
       const lastUnderscore = parsedId.lastIndexOf("_");
       if (lastUnderscore !== -1) {
@@ -832,7 +841,7 @@ ACTIVE_SESSIONS.get = function(token: string): string | undefined {
       const db = getDb();
       const user = db.users.find(u => u.id === parsedId);
       if (user) {
-        ACTIVE_SESSIONS.set(token, user.id);
+        originalSet(cleaned, user.id);
         userId = user.id;
       }
     }
@@ -1110,14 +1119,15 @@ app.post("/api/auth/login", (req, res) => {
 });
 
 app.post("/api/auth/register", async (req, res) => {
-  const { name, email, password, role, department, rollNumber, phone, clubName, clubDescription, clubCategory } = req.body;
+  const { name, email: rawEmail, password, role, department, rollNumber, phone, clubName, clubDescription, clubCategory } = req.body;
   const db = getDb();
 
-  if (!name || !email || !password || !role) {
+  if (!name || !rawEmail || !password || !role) {
     return res.status(400).json({ error: "Missing required fields" });
   }
 
-  const existing = db.users.find(u => u.email.toLowerCase() === email.toLowerCase());
+  const email = rawEmail.toLowerCase().trim();
+  const existing = db.users.find(u => u.email.toLowerCase() === email);
   if (existing) {
     return res.status(400).json({ error: "Email already exists" });
   }
@@ -1534,7 +1544,7 @@ app.put("/api/users/profile", async (req, res) => {
   if (userIdx === -1) return res.status(404).json({ error: "User not found" });
 
   if (name !== undefined) db.users[userIdx].name = name;
-  if (email !== undefined) db.users[userIdx].email = email;
+  if (email !== undefined) db.users[userIdx].email = typeof email === "string" ? email.toLowerCase().trim() : email;
   if (department !== undefined) db.users[userIdx].department = department;
   if (rollNumber !== undefined) db.users[userIdx].rollNumber = rollNumber;
   if (phone !== undefined) db.users[userIdx].phone = phone;
@@ -1795,6 +1805,7 @@ app.get("/api/dashboard/stats", (req, res) => {
     upcomingEvents: db.events.filter(e => e.status === "Upcoming").length,
     pastEvents: db.events.filter(e => e.status === "Completed").length,
     students: db.users.filter(u => u.role === "student").length,
+    totalStudentsAndAdmins: db.users.filter(u => u.role === "student" || u.role === "club_admin").length,
     clubs: db.clubs.filter(c => c.approved).length,
     pendingClubs: db.clubs.filter(c => !c.approved).length,
     totalRegistrations: db.registrations.length,

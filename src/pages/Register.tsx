@@ -225,7 +225,7 @@ export default function Register({ onLoginClick }: RegisterProps) {
                   placeholder="Enter your email"
                   icon={Mail}
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => setEmail(e.target.value.toLowerCase())}
                 />
               </div>
 

@@ -486,10 +486,14 @@ export default function Dashboard({ searchQuery = "" }: DashboardProps) {
 
         <div className="p-6 rounded-xl bg-[#1e1e1e] border border-zinc-800">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-[10px] font-bold tracking-wider text-zinc-500 uppercase">Registered Students</span>
+            <span className="text-[10px] font-bold tracking-wider text-zinc-500 uppercase">
+              {user?.role === "super_admin" ? "Total (Admins + Students)" : "Registered Students"}
+            </span>
             <Users className="h-4 w-4 text-[#f26522]" />
           </div>
-          <p className="text-2xl font-display font-bold text-white">{stats.students}</p>
+          <p className="text-2xl font-display font-bold text-white">
+            {user?.role === "super_admin" ? (stats.totalStudentsAndAdmins ?? stats.students) : stats.students}
+          </p>
           <p className="text-[10px] text-[#f26522] mt-1 flex items-center gap-1 font-semibold">
             <TrendingUp className="h-3 w-3" /> +12% growth this month
           </p>

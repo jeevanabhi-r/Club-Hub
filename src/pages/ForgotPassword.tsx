@@ -175,7 +175,7 @@ export default function ForgotPassword({ onLoginClick }: ForgotPasswordProps) {
                 placeholder="Enter your registered email"
                 icon={Mail}
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => setEmail(e.target.value.toLowerCase())}
               />
             </div>
 
