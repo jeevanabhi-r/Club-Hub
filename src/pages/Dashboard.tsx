@@ -23,7 +23,7 @@ import { useNavigate, Link } from "react-router-dom";
 import { DashboardStats, Club, Event, Registration } from "../types";
 import { CardSkeleton, ListSkeleton } from "../components/Skeletons";
 import { toast } from "react-hot-toast";
-import { formatToDDMMYY, parseEventDate } from "../utils/date";
+import { formatToDDMMYY, parseEventDate, isPastEvent } from "../utils/date";
 import { canEditEvent } from "../utils/permissions";
 import CreateEventModal from "../components/CreateEventModal";
 import { ConfirmModal } from "../components/ConfirmModal";
@@ -143,7 +143,7 @@ export default function Dashboard({ searchQuery = "" }: DashboardProps) {
   }
 
   // Admin view filters
-  const upcomingEvents = events.filter(evt => evt.status === "Upcoming");
+  const upcomingEvents = events.filter(evt => (evt.status === "Upcoming" || !evt.status) && !isPastEvent(evt.date, evt.time));
   const filteredUpcoming = upcomingEvents
     .filter(evt => 
       evt.title.toLowerCase().includes(localSearch.toLowerCase()) ||
@@ -230,11 +230,16 @@ export default function Dashboard({ searchQuery = "" }: DashboardProps) {
                         <span className="text-[9px] font-bold tracking-wider uppercase opacity-30">No Event Banner</span>
                       </div>
                     )}
-                    <span className={`absolute top-3 right-3 px-2 py-0.5 rounded text-[9px] font-bold tracking-wider uppercase bg-black/60 backdrop-blur border border-white/10 ${
-                      evt.status === "Upcoming" ? "text-emerald-400" : "text-zinc-400"
-                    }`}>
-                      {evt.status === "Upcoming" ? "Upcoming" : "Past"}
-                    </span>
+                    {(() => {
+                      const isPast = evt.status === "Completed" || evt.status === "Cancelled" || isPastEvent(evt.date, evt.time);
+                      return (
+                        <span className={`absolute top-3 right-3 px-2 py-0.5 rounded text-[9px] font-bold tracking-wider uppercase bg-black/60 backdrop-blur border border-white/10 ${
+                          isPast ? "text-zinc-400" : "text-emerald-400"
+                        }`}>
+                          {isPast ? "Past" : "Upcoming"}
+                        </span>
+                      );
+                    })()}
                   </div>
 
                   {/* Card Content */}

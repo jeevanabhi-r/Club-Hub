@@ -22,7 +22,7 @@ import {
 import { Event, Registration } from "../types";
 import { EventCardSkeleton } from "../components/Skeletons";
 import { toast } from "react-hot-toast";
-import { formatToDDMMYY, parseEventDate } from "../utils/date";
+import { formatToDDMMYY, parseEventDate, isPastEvent } from "../utils/date";
 import { canEditEvent, canDeleteEvent, isSuperAdmin } from "../utils/permissions";
 import CreateEventModal from "../components/CreateEventModal";
 import { ConfirmModal } from "../components/ConfirmModal";
@@ -162,9 +162,9 @@ export default function Events({ searchQuery, filter = "all" }: EventsProps) {
 
       let matchesFilter = true;
       if (filter === "upcoming" || (filter === "all" && statusFilter === "upcoming")) {
-        matchesFilter = evt.status === "Upcoming";
+        matchesFilter = (evt.status === "Upcoming" || !evt.status) && !isPastEvent(evt.date, evt.time);
       } else if (filter === "past" || (filter === "all" && statusFilter === "past")) {
-        matchesFilter = evt.status === "Completed" || evt.status === "Cancelled";
+        matchesFilter = evt.status === "Completed" || evt.status === "Cancelled" || isPastEvent(evt.date, evt.time);
       } else if (filter === "my-registrations") {
         matchesFilter = registrations.some(r => r.eventId === evt.id && r.studentId === user?.id);
       }
@@ -278,7 +278,7 @@ export default function Events({ searchQuery, filter = "all" }: EventsProps) {
             
             const canManage = canEditEvent(user, evt);
 
-            const isPast = evt.status === "Completed" || evt.status === "Cancelled" || filter === "past";
+            const isPast = evt.status === "Completed" || evt.status === "Cancelled" || filter === "past" || isPastEvent(evt.date, evt.time);
 
             return (
               <div 

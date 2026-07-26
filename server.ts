@@ -1600,43 +1600,135 @@ app.delete("/api/users/profile", async (req, res) => {
 
 // --- STUDENT FEATURE ENDPOINTS ---
 
-// Helper to compare dates correctly (handles DD/MM/YY, DD/MM/YYYY, and YYYY-MM-DD)
-function isPastDate(dateStr: string): boolean {
+// Helper to parse a single date token cleanly
+function parseSingleDatePartServer(partStr: string, fallbackYear: number): { year: number; month: number; day: number } | null {
+  if (!partStr) return null;
+  const trimmed = partStr.trim();
+  if (!trimmed) return null;
+
+  // 1. ISO YYYY-MM-DD or YYYY/MM/DD
+  let m = trimmed.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
+  if (m) {
+    const y = parseInt(m[1], 10);
+    const mo = parseInt(m[2], 10) - 1;
+    const d = parseInt(m[3], 10);
+    if (mo >= 0 && mo <= 11 && d >= 1 && d <= 31) {
+      return { year: y, month: mo, day: d };
+    }
+  }
+
+  // 2. Standard DD/MM/YYYY or DD/MM/YY or DD-MM-YYYY or DD-MM-YY
+  m = trimmed.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+  if (m) {
+    const d = parseInt(m[1], 10);
+    const mo = parseInt(m[2], 10) - 1;
+    let y = parseInt(m[3], 10);
+    if (y < 100) y += 2000;
+    if (mo >= 0 && mo <= 11 && d >= 1 && d <= 31) {
+      return { year: y, month: mo, day: d };
+    }
+  }
+
+  // 3. Typo DD/MMYYYY e.g. 28/072026
+  m = trimmed.match(/^(\d{1,2})\/(\d{1,2})(\d{4})$/);
+  if (m) {
+    const d = parseInt(m[1], 10);
+    const mo = parseInt(m[2], 10) - 1;
+    const y = parseInt(m[3], 10);
+    if (mo >= 0 && mo <= 11 && d >= 1 && d <= 31) {
+      return { year: y, month: mo, day: d };
+    }
+  }
+
+  // 4. Partial DD/MM or DD-MM without year
+  m = trimmed.match(/^(\d{1,2})[\/\-](\d{1,2})$/);
+  if (m) {
+    const d = parseInt(m[1], 10);
+    const mo = parseInt(m[2], 10) - 1;
+    if (mo >= 0 && mo <= 11 && d >= 1 && d <= 31) {
+      return { year: fallbackYear, month: mo, day: d };
+    }
+  }
+
+  // 5. Fallback Date.parse
+  const parsed = Date.parse(trimmed);
+  if (!isNaN(parsed)) {
+    const dt = new Date(parsed);
+    return { year: dt.getFullYear(), month: dt.getMonth(), day: dt.getDate() };
+  }
+
+  return null;
+}
+
+// Helper to compare dates and times correctly (handles single-day, multi-day ranges, ISO dates, and time ranges)
+function isPastDate(dateStr: string, timeStr?: string): boolean {
   if (!dateStr) return false;
   try {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
     const str = String(dateStr).trim();
+    const yearMatches = str.match(/\b(20\d{2})\b/g);
+    const fallbackYear = yearMatches ? parseInt(yearMatches[yearMatches.length - 1], 10) : new Date().getFullYear();
 
-    // If it's in DD/MM/YY or DD/MM/YYYY
-    if (/^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(str)) {
-      const parts = str.split("/");
-      const day = parseInt(parts[0], 10);
-      const month = parseInt(parts[1], 10);
-      let year = parseInt(parts[2], 10);
-      if (year < 100) {
-        year += 2000;
+    // Split multi-day date strings safely
+    const parts = str.split(/[\s&\|,;]+|\s+to\s+|\s+and\s+|\s+[\-–—]\s+/i);
+    const candidates: { year: number; month: number; day: number }[] = [];
+
+    for (const p of parts) {
+      const parsed = parseSingleDatePartServer(p, fallbackYear);
+      if (parsed) candidates.push(parsed);
+    }
+
+    if (candidates.length === 0) {
+      const fallbackParsed = parseSingleDatePartServer(str, fallbackYear);
+      if (fallbackParsed) candidates.push(fallbackParsed);
+    }
+
+    if (candidates.length === 0) return false;
+
+    // Select the latest END date candidate
+    let maxCandidate = candidates[0];
+    let maxTimeVal = new Date(maxCandidate.year, maxCandidate.month, maxCandidate.day).getTime();
+
+    for (let i = 1; i < candidates.length; i++) {
+      const cand = candidates[i];
+      const t = new Date(cand.year, cand.month, cand.day).getTime();
+      if (t > maxTimeVal) {
+        maxTimeVal = t;
+        maxCandidate = cand;
       }
-      const eventDate = new Date(year, month - 1, day);
-      return eventDate < today;
     }
 
-    // If it's YYYY-MM-DD
-    if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
-      const [y, m, d] = str.split("-").map(Number);
-      const eventDate = new Date(y, m - 1, d);
-      return eventDate < today;
+    // Extract time
+    let hours = 23;
+    let minutes = 59;
+    let seconds = 59;
+
+    if (timeStr && String(timeStr).trim()) {
+      const trimmedTime = String(timeStr).trim();
+      const timeParts = trimmedTime.split(/[-–—to]/i);
+      const lastTimePart = timeParts[timeParts.length - 1].trim();
+
+      const timeMatch = lastTimePart.match(/(\d{1,2})(?::(\d{2}))?\s*(AM|PM|am|pm)?/);
+      if (timeMatch) {
+        let h = parseInt(timeMatch[1], 10);
+        const m = timeMatch[2] ? parseInt(timeMatch[2], 10) : 0;
+        const ampm = timeMatch[3] ? timeMatch[3].toUpperCase() : null;
+
+        if (ampm === "PM" && h < 12) h += 12;
+        if (ampm === "AM" && h === 12) h = 0;
+
+        if (h >= 0 && h <= 23 && m >= 0 && m <= 59) {
+          hours = h;
+          minutes = m;
+          seconds = 0;
+        }
+      }
     }
 
-    const parsedDate = new Date(str);
-    if (!isNaN(parsedDate.getTime())) {
-      return parsedDate < today;
-    }
+    const finalDate = new Date(maxCandidate.year, maxCandidate.month, maxCandidate.day, hours, minutes, seconds);
+    return Date.now() > finalDate.getTime();
   } catch (e) {
-    // ignore
+    return false;
   }
-  return false;
 }
 
 // Get Events (filtered, with details)
@@ -1644,9 +1736,9 @@ app.get("/api/events", (req, res) => {
   const db = getDb();
   let list = [...db.events];
   
-  // Clean past/completed statuses dynamically based on date comparison (simple JS)
+  // Clean past/completed statuses dynamically based on date comparison
   list = list.map(evt => {
-    if (evt.status === "Upcoming" && isPastDate(evt.date)) {
+    if (evt.status === "Upcoming" && isPastDate(evt.date, evt.time)) {
       return { ...evt, status: "Completed" };
     }
     return evt;
@@ -1655,17 +1747,17 @@ app.get("/api/events", (req, res) => {
   res.json(list);
 });
 
-// Get only past/completed events efficiently from Firestore cache
+// Get only past/completed events efficiently
 app.get("/api/events/past", (req, res) => {
   const db = getDb();
   let list = db.events
     .map(evt => {
-      if (evt.status === "Upcoming" && isPastDate(evt.date)) {
+      if (evt.status === "Upcoming" && isPastDate(evt.date, evt.time)) {
         return { ...evt, status: "Completed" };
       }
       return evt;
     })
-    .filter(evt => evt.status === "Completed" || evt.status === "Cancelled" || isPastDate(evt.date));
+    .filter(evt => evt.status === "Completed" || evt.status === "Cancelled" || isPastDate(evt.date, evt.time));
 
   res.json(list);
 });
@@ -1803,8 +1895,8 @@ app.get("/api/dashboard/stats", (req, res) => {
   
   const stats = {
     totalEvents: db.events.length,
-    upcomingEvents: db.events.filter(e => e.status === "Upcoming").length,
-    pastEvents: db.events.filter(e => e.status === "Completed").length,
+    upcomingEvents: db.events.filter(e => (e.status === "Upcoming" || !e.status) && !isPastDate(e.date, e.time)).length,
+    pastEvents: db.events.filter(e => e.status === "Completed" || e.status === "Cancelled" || isPastDate(e.date, e.time)).length,
     students: db.users.filter(u => u.role === "student").length,
     totalStudentsAndAdmins: db.users.filter(u => u.role === "student" || u.role === "club_admin").length,
     clubs: db.clubs.filter(c => c.approved).length,

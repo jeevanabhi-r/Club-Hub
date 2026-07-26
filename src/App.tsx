@@ -92,11 +92,11 @@ function AppContent() {
       <Sidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
 
       {/* Main Workspace Frame */}
-      <div className="flex flex-1 flex-col overflow-hidden relative">
+      <div className="flex flex-1 flex-col min-h-0 overflow-hidden relative">
         <Navbar onSearch={setSearchQuery} searchQuery={searchQuery} onMenuClick={() => setIsSidebarOpen(true)} />
 
-        <main className="flex-1 overflow-y-auto p-4 md:p-8 pb-24 md:pb-8">
-          <div className="mx-auto max-w-6xl">
+        <main className="flex-1 min-h-0 overflow-y-auto p-4 md:p-8 pb-24 md:pb-12">
+          <div className="mx-auto max-w-6xl pb-8">
             <Routes>
               <Route 
                 path="/dashboard" 
