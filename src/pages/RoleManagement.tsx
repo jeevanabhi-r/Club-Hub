@@ -105,11 +105,10 @@ export default function RoleManagement() {
           : "Active";
 
         return {
-          "S.No": idx,
+          "S.No": idx + 1,
           "User ID": u.id || "—",
           "Full Name": u.name || "—",
           "Email": u.email || "—",
-          "Password": (u as any).password || "—",
           "Role": roleLabel,
           "Club": clubName,
           "Department": u.department || "—",
@@ -129,7 +128,6 @@ export default function RoleManagement() {
         "User ID": 20,
         "Full Name": 25,
         "Email": 30,
-        "Password": 15,
         "Role": 15,
         "Club": 25,
         "Department": 20,
