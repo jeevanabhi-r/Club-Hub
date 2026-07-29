@@ -55,6 +55,10 @@ export default function Dashboard({ searchQuery = "" }: DashboardProps) {
   const [isCreateEventOpen, setIsCreateEventOpen] = useState(false);
   const [eventToEdit, setEventToEdit] = useState<Event | null>(null);
 
+  const handleTrackInteraction = (eventId: string, type: "view_details" | "view_photos") => {
+    axios.post(`/api/events/${eventId}/interaction`, { type }).catch(() => {});
+  };
+
   // Custom confirmation modal states
   const [deleteEventId, setDeleteEventId] = useState<string | null>(null);
   const [cancelRegId, setCancelRegId] = useState<string | null>(null);
@@ -272,7 +276,10 @@ export default function Dashboard({ searchQuery = "" }: DashboardProps) {
                         <div className="flex flex-col w-full space-y-2">
                           <div className="flex items-center gap-2 w-full">
                             <button
-                              onClick={() => setSelectedEventDetails(evt)}
+                              onClick={() => {
+                                setSelectedEventDetails(evt);
+                                handleTrackInteraction(evt.id, "view_details");
+                              }}
                               className="flex-1 rounded-lg bg-[#2c2c2e] hover:bg-[#3a3a3c] py-2 text-xs font-bold text-white text-center transition-colors"
                             >
                               View Details
@@ -310,7 +317,10 @@ export default function Dashboard({ searchQuery = "" }: DashboardProps) {
                       ) : (
                         <div className="flex items-center gap-2 w-full">
                           <button
-                            onClick={() => setSelectedEventDetails(evt)}
+                            onClick={() => {
+                              setSelectedEventDetails(evt);
+                              handleTrackInteraction(evt.id, "view_details");
+                            }}
                             className="flex-1 rounded-lg bg-[#2c2c2e] hover:bg-[#3a3a3c] py-2 text-xs font-bold text-white text-center transition-colors cursor-pointer"
                           >
                             View Details
@@ -321,6 +331,7 @@ export default function Dashboard({ searchQuery = "" }: DashboardProps) {
                               target="_blank"
                               referrerPolicy="no-referrer"
                               rel="noopener noreferrer"
+                              onClick={() => handleTrackInteraction(evt.id, "view_photos")}
                               className="flex-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 py-2 text-xs font-bold text-white text-center transition-colors flex items-center justify-center"
                             >
                               View Photos
@@ -408,6 +419,7 @@ export default function Dashboard({ searchQuery = "" }: DashboardProps) {
                         target="_blank"
                         referrerPolicy="no-referrer"
                         rel="noopener noreferrer"
+                        onClick={() => handleTrackInteraction(selectedEventDetails.id, "view_photos")}
                         className="mt-1 flex items-center justify-center gap-1.5 w-full rounded-lg bg-emerald-600 hover:bg-emerald-500 py-2 text-xs font-bold text-white text-center transition-colors"
                       >
                         View Photos Album (Google Drive)

@@ -22,10 +22,11 @@ import {
 import { Event, Registration } from "../types";
 import { EventCardSkeleton } from "../components/Skeletons";
 import { toast } from "react-hot-toast";
-import { formatToDDMMYY, parseEventDate, isPastEvent } from "../utils/date";
+import { formatToDDMMYY, parseEventDate, isPastEvent, getEventEndTimestamp } from "../utils/date";
 import { canEditEvent, canDeleteEvent, isSuperAdmin } from "../utils/permissions";
 import CreateEventModal from "../components/CreateEventModal";
 import { ConfirmModal } from "../components/ConfirmModal";
+import CalendarDatePicker, { DateFilterValue, DEFAULT_ALL_FILTER } from "../components/CalendarDatePicker";
 
 interface EventsProps {
   searchQuery: string;
@@ -44,6 +45,11 @@ export default function Events({ searchQuery, filter = "all" }: EventsProps) {
   // Filters
   const [selectedClub, setSelectedClub] = useState("All");
   const [statusFilter, setStatusFilter] = useState<"all" | "upcoming" | "past">("all");
+  const [dateFilter, setDateFilter] = useState<DateFilterValue>(DEFAULT_ALL_FILTER);
+
+  const handleTrackInteraction = (eventId: string, type: "view_details" | "view_photos") => {
+    axios.post(`/api/events/${eventId}/interaction`, { type }).catch(() => {});
+  };
 
   // Selected event details modal
   const [selectedEventDetails, setSelectedEventDetails] = useState<Event | null>(null);
@@ -169,7 +175,20 @@ export default function Events({ searchQuery, filter = "all" }: EventsProps) {
         matchesFilter = registrations.some(r => r.eventId === evt.id && r.studentId === user?.id);
       }
 
-      return matchesSearch && matchesClub && matchesFilter;
+      let matchesDate = true;
+      if (dateFilter.type !== "all" && dateFilter.startDate && dateFilter.endDate) {
+        const itemStartMs = parseEventDate(evt.date);
+        const itemEndMs = getEventEndTimestamp(evt.date, evt.time) || (itemStartMs ? itemStartMs + 86399000 : 0);
+
+        if (itemStartMs > 0) {
+          const filterStartMs = dateFilter.startDate.getTime();
+          const filterEndMs = dateFilter.endDate.getTime();
+
+          matchesDate = itemStartMs <= filterEndMs && itemEndMs >= filterStartMs;
+        }
+      }
+
+      return matchesSearch && matchesClub && matchesFilter && matchesDate;
     })
     .sort((a, b) => {
       // Sort past events descending (newest first), otherwise ascending (soonest first)
@@ -218,6 +237,12 @@ export default function Events({ searchQuery, filter = "all" }: EventsProps) {
           <Filter className="h-3.5 w-3.5 text-[#f26522]" />
           <span>Filters:</span>
         </div>
+
+        {/* Calendar Date Picker Component */}
+        <CalendarDatePicker
+          value={dateFilter}
+          onChange={(newFilter) => setDateFilter(newFilter)}
+        />
 
         {/* Club Filter */}
         <select
@@ -343,7 +368,10 @@ export default function Events({ searchQuery, filter = "all" }: EventsProps) {
                     {canManage ? (
                       <div className="flex items-center gap-2 w-full">
                         <button
-                          onClick={() => setSelectedEventDetails(evt)}
+                          onClick={() => {
+                            setSelectedEventDetails(evt);
+                            handleTrackInteraction(evt.id, "view_details");
+                          }}
                           className="flex-1 rounded-lg bg-[#2c2c2e] hover:bg-[#3a3a3c] py-2 text-xs font-bold text-white text-center transition-colors"
                         >
                           View Details
@@ -371,7 +399,10 @@ export default function Events({ searchQuery, filter = "all" }: EventsProps) {
                       <div className="flex flex-col w-full space-y-2">
                         <div className="flex items-center gap-2 w-full">
                           <button
-                            onClick={() => setSelectedEventDetails(evt)}
+                            onClick={() => {
+                              setSelectedEventDetails(evt);
+                              handleTrackInteraction(evt.id, "view_details");
+                            }}
                             className="flex-1 rounded-lg bg-[#2c2c2e] hover:bg-[#3a3a3c] py-2 text-xs font-bold text-white text-center transition-colors cursor-pointer"
                           >
                             View Details
@@ -382,6 +413,7 @@ export default function Events({ searchQuery, filter = "all" }: EventsProps) {
                               target="_blank"
                               referrerPolicy="no-referrer"
                               rel="noopener noreferrer"
+                              onClick={() => handleTrackInteraction(evt.id, "view_photos")}
                               className="flex-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 py-2 text-xs font-bold text-white text-center transition-colors flex items-center justify-center"
                             >
                               View Photos
@@ -471,6 +503,7 @@ export default function Events({ searchQuery, filter = "all" }: EventsProps) {
                       target="_blank"
                       referrerPolicy="no-referrer"
                       rel="noopener noreferrer"
+                      onClick={() => handleTrackInteraction(selectedEventDetails.id, "view_photos")}
                       className="mt-1 flex items-center justify-center gap-1.5 w-full rounded-lg bg-emerald-600 hover:bg-emerald-500 py-2 text-xs font-bold text-white text-center transition-colors"
                     >
                       View Photos Album (Google Drive)

@@ -13,7 +13,8 @@ import {
   Moon,
   Sun,
   UserCheck,
-  LayoutDashboard
+  LayoutDashboard,
+  BarChart3
 } from "lucide-react";
 import { BrandLogo } from "./BrandLogo";
 
@@ -132,6 +133,15 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
               </NavLink>
 
               <NavLink
+                to="/event-analytics"
+                onClick={handleLinkClick}
+                className={getLinkClass(location.pathname === "/event-analytics")}
+              >
+                <BarChart3 className="h-4 w-4 text-[#f26522]" />
+                <span>📊 Event Interaction Analytics</span>
+              </NavLink>
+
+              <NavLink
                 to="/past"
                 onClick={handleLinkClick}
                 className={getLinkClass(location.pathname === "/past")}
@@ -139,7 +149,6 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
                 <Clock className="h-4 w-4" />
                 <span>Past Events</span>
               </NavLink>
-
               <NavLink
                 to="/profile"
                 onClick={handleLinkClick}
@@ -189,6 +198,24 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
               >
                 <LayoutDashboard className="h-4 w-4" />
                 <span>Dashboard</span>
+              </NavLink>
+
+              <NavLink
+                to="/events"
+                onClick={handleLinkClick}
+                className={getLinkClass(location.pathname === "/events")}
+              >
+                <Calendar className="h-4 w-4" />
+                <span>Event Management</span>
+              </NavLink>
+
+              <NavLink
+                to="/event-analytics"
+                onClick={handleLinkClick}
+                className={getLinkClass(location.pathname === "/event-analytics")}
+              >
+                <BarChart3 className="h-4 w-4 text-[#f26522]" />
+                <span>📊 Event Interaction Analytics</span>
               </NavLink>
 
               <NavLink

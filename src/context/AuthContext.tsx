@@ -2,13 +2,15 @@ import React, { createContext, useContext, useState, useEffect } from "react";
 import axios from "axios";
 import { User } from "../types";
 import { doc, onSnapshot } from "firebase/firestore";
-import { db } from "../firebase";
+import { GoogleAuthProvider, signInWithPopup } from "firebase/auth";
+import { db, auth } from "../firebase";
 
 interface AuthContextType {
   user: User | null;
   token: string | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
+  loginWithGoogle: () => Promise<void>;
   register: (data: any) => Promise<void>;
   logout: () => void;
   updateUser: (updatedUser: User) => void;
@@ -68,6 +70,47 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         msg = msg.message || msg.error || JSON.stringify(msg);
       }
       throw new Error(typeof msg === "string" ? msg : "Invalid credentials");
+    }
+  };
+
+  const loginWithGoogle = async () => {
+    try {
+      const provider = new GoogleAuthProvider();
+      provider.setCustomParameters({
+        prompt: "select_account"
+      });
+      const result = await signInWithPopup(auth, provider);
+      const googleUser = result.user;
+
+      if (!googleUser.email) {
+        throw new Error("No email address provided by Google account.");
+      }
+
+      const response = await axios.post("/api/auth/google", {
+        email: googleUser.email,
+        name: googleUser.displayName || googleUser.email.split("@")[0] || "User",
+        profilePic: googleUser.photoURL || "",
+        googleUid: googleUser.uid,
+      });
+
+      const { token: receivedToken, user: receivedUser } = response.data;
+      localStorage.setItem("clubhub_token", receivedToken);
+      setToken(receivedToken);
+      setUser(receivedUser);
+      axios.defaults.headers.common["Authorization"] = `Bearer ${receivedToken}`;
+    } catch (error: any) {
+      if (error.code === "auth/popup-closed-by-user") {
+        throw new Error("Google Sign-In popup was closed before completing.");
+      } else if (error.code === "auth/cancelled-popup-request") {
+        throw new Error("Google Sign-In request was cancelled.");
+      } else if (error.code === "auth/popup-blocked") {
+        throw new Error("Google Sign-In popup was blocked by your browser settings.");
+      }
+      let msg = error.response?.data?.error || error.message || "Google Sign-In failed";
+      if (msg && typeof msg === "object") {
+        msg = msg.message || msg.error || JSON.stringify(msg);
+      }
+      throw new Error(typeof msg === "string" ? msg : "Google Sign-In failed");
     }
   };
 
@@ -177,6 +220,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         token,
         loading,
         login,
+        loginWithGoogle,
         register,
         logout,
         updateUser,

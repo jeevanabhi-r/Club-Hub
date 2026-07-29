@@ -65,6 +65,26 @@ export interface Event {
   organizer?: string;
   driveLink?: string;
   createdBy?: string;
+  viewDetailsCount?: number;
+  viewPhotosCount?: number;
+}
+
+export interface EventAnalyticsData {
+  id: string;
+  eventId: string;
+  title: string;
+  clubName: string;
+  clubId: string;
+  banner: string;
+  date: string;
+  time?: string;
+  driveLink?: string;
+  description?: string;
+  viewDetailsCount: number;
+  viewPhotosCount: number;
+  totalInteractions: number;
+  createdBy?: string;
+  creatorEmail?: string;
 }
 
 export interface Registration {

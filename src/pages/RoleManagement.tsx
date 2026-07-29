@@ -34,124 +34,49 @@ export default function RoleManagement() {
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState<boolean>(false);
 
-  // Handle exporting users to Excel
+  // Handle exporting users to Excel via backend endpoint
   const handleDownloadUsers = async () => {
     setIsExporting(true);
     try {
-      let firestoreUsers: User[] = [];
-      let firestoreClubs: any[] = [];
-
-      try {
-        const docRef = doc(db, "system_data", "database");
-        const snapshot = await getDoc(docRef);
-        if (snapshot.exists()) {
-          const data = snapshot.data();
-          firestoreUsers = data?.users || [];
-          firestoreClubs = data?.clubs || [];
-        }
-      } catch (err) {
-        console.warn("Direct Firestore read failed or denied, using API / state fallback:", err);
+      const storedToken = localStorage.getItem("clubhub_token");
+      const headers: Record<string, string> = {};
+      if (storedToken) {
+        headers["Authorization"] = `Bearer ${storedToken}`;
       }
 
-      // Fallback to local state if Firestore read didn't return users
-      if (!firestoreUsers || firestoreUsers.length === 0) {
-        if (users && users.length > 0) {
-          firestoreUsers = users;
-          firestoreClubs = clubs;
-        } else {
-          // fetch via API as final fallback
-          const [usersRes, clubsRes] = await Promise.all([
-            axios.get("/api/admin/users"),
-            axios.get("/api/clubs")
-          ]);
-          firestoreUsers = usersRes.data || [];
-          firestoreClubs = clubsRes.data || [];
-        }
-      }
-
-      if (!firestoreUsers || firestoreUsers.length === 0) {
-        toast.error("No users available to export.");
-        setIsExporting(false);
-        return;
-      }
-
-      const today = new Date().toISOString().split("T")[0];
-      const filename = `ClubHub_Users_${today}.xlsx`;
-
-      const worksheetData = firestoreUsers.map((u, idx) => {
-        let regDateStr = "—";
-        if (u.id && u.id.startsWith("usr_")) {
-          const ts = parseInt(u.id.replace("usr_", ""));
-          if (!isNaN(ts)) {
-            regDateStr = new Date(ts).toISOString().split("T")[0];
-          }
-        }
-        
-        // Resolve club name
-        const clubName = u.role === "club_admin" 
-          ? (firestoreClubs.find(c => c.id === (u.clubId || u.assignedClubId))?.name || u.clubName || u.assignedClubName || "—")
-          : "—";
-
-        // Resolve role label
-        const roleLabel = u.role === "super_admin" 
-          ? "Super Admin" 
-          : u.role === "club_admin" 
-            ? "Club Admin" 
-            : "Student";
-
-        // Resolve status label
-        const statusLabel = u.role === "club_admin" 
-          ? (u.approved ? "Approved" : "Pending") 
-          : "Active";
-
-        return {
-          "S.No": idx + 1,
-          "User ID": u.id || "—",
-          "Full Name": u.name || "—",
-          "Email": u.email || "—",
-          "Role": roleLabel,
-          "Club": clubName,
-          "Department": u.department || "—",
-          "Phone Number": u.phone || "—",
-          "Registration Date": regDateStr,
-          "Status": statusLabel
-        };
+      const response = await axios.get("/api/admin/users/export", {
+        headers,
+        responseType: "blob"
       });
 
-      const worksheet = XLSX.utils.json_to_sheet(worksheetData);
-      const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, "Users");
+      // Extract filename from header if present
+      let filename = "ClubHub_Users.xlsx";
+      const disposition = response.headers["content-disposition"];
+      if (disposition && disposition.includes("filename=")) {
+        const matches = /filename="?([^";]+)"?/.exec(disposition);
+        if (matches && matches[1]) {
+          filename = matches[1];
+        }
+      } else {
+        const isAuthorizedEmail =
+          (user?.email || "").trim().toLowerCase() === "clubhuboffcial@gmail.com" ||
+          (user?.email || "").trim().toLowerCase() === "clubhubofficial@gmail.com";
+        filename = isAuthorizedEmail ? "ClubHub_Users_With_Passwords.xlsx" : "ClubHub_Users.xlsx";
+      }
 
-      // Auto-fit column widths
-      const maxLengths = {
-        "S.No": 8,
-        "User ID": 20,
-        "Full Name": 25,
-        "Email": 30,
-        "Role": 15,
-        "Club": 25,
-        "Department": 20,
-        "Phone Number": 15,
-        "Registration Date": 18,
-        "Status": 12
-      };
-
-      const wscols = Object.keys(maxLengths).map((key) => ({
-        wch: Math.max(
-          key.length,
-          ...worksheetData.map(row => String(row[key as keyof typeof row] || "").length)
-        ) + 2
-      }));
-      worksheet["!cols"] = wscols;
-
-      const excelBuffer = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
-      const dataBlob = new Blob([excelBuffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8" });
-      saveAs(dataBlob, filename);
+      const blob = new Blob([response.data], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      });
+      saveAs(blob, filename);
 
       toast.success("Users exported successfully.");
     } catch (err: any) {
       console.error("Failed to export users:", err);
-      toast.error("Failed to export users.");
+      if (err.response?.status === 403) {
+        toast.error("403 Forbidden: Access denied.");
+      } else {
+        toast.error("Failed to export users.");
+      }
     } finally {
       setIsExporting(false);
     }
@@ -427,6 +352,16 @@ export default function RoleManagement() {
                 const isSelf = u.id === user?.id;
                 const isUpdating = updatingUserId === u.id;
 
+                const isTargetMainSuperAdmin =
+                  (u.email || "").trim().toLowerCase() === "clubhuboffcial@gmail.com" ||
+                  (u.email || "").trim().toLowerCase() === "clubhubofficial@gmail.com";
+                const isCurrentMainSuperAdmin =
+                  (user?.email || "").trim().toLowerCase() === "clubhuboffcial@gmail.com" ||
+                  (user?.email || "").trim().toLowerCase() === "clubhubofficial@gmail.com";
+
+                const isRoleProtected = isTargetMainSuperAdmin && !isCurrentMainSuperAdmin;
+                const isDeleteProtected = isTargetMainSuperAdmin;
+
                 return (
                   <tr key={u.id} className={`hover:bg-zinc-900/20 transition-all ${isSelf ? 'bg-[#f26522]/5' : ''}`}>
                     
@@ -507,9 +442,10 @@ export default function RoleManagement() {
                           <RefreshCw className="h-3.5 w-3.5 text-[#f26522] animate-spin" />
                         )}
                         <select
-                          disabled={isSelf || isUpdating}
+                          disabled={isSelf || isRoleProtected || isUpdating}
                           value={getSelectValue(u)}
                           onChange={(e) => handleDropdownChange(u.id, e.target.value)}
+                          title={isRoleProtected ? "Only the primary Super Admin can modify their role." : isSelf ? "You cannot modify your own role." : "Change user role"}
                           className="rounded-lg bg-zinc-950 border border-zinc-800 text-xs text-zinc-300 px-2 py-1.5 focus:border-[#f26522] focus:outline-none disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
                         >
                           <option value="student">Student</option>
@@ -522,11 +458,11 @@ export default function RoleManagement() {
                         </select>
 
                         <button
-                          onClick={() => !isSelf && setUserToDelete(u)}
-                          disabled={isSelf}
-                          title={isSelf ? "You cannot delete your own account." : "Delete user"}
+                          onClick={() => !isSelf && !isDeleteProtected && setUserToDelete(u)}
+                          disabled={isSelf || isDeleteProtected}
+                          title={isSelf ? "You cannot delete your own account." : isDeleteProtected ? "The primary Super Admin account cannot be deleted." : "Delete user"}
                           className={`p-1.5 rounded-lg border transition-all ${
-                            isSelf 
+                            isSelf || isDeleteProtected 
                               ? "bg-zinc-900 border-zinc-850 text-zinc-700 cursor-not-allowed" 
                               : "bg-red-500/10 border-red-500/15 text-red-400 hover:bg-red-500/20 hover:text-red-300 cursor-pointer"
                           }`}

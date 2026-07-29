@@ -10,11 +10,33 @@ interface LoginProps {
 }
 
 export default function Login({ onRegisterClick, onForgotPasswordClick }: LoginProps) {
-  const { login } = useAuth();
+  const { login, loginWithGoogle } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [error, setError] = useState("");
+
+  const handleGoogleSignIn = async () => {
+    setIsGoogleLoading(true);
+    setError("");
+    try {
+      await loginWithGoogle();
+    } catch (err: any) {
+      console.error("Google Sign-In error:", err);
+      let displayError = "Failed to sign in with Google.";
+      if (err) {
+        if (typeof err === "string") {
+          displayError = err;
+        } else if (err.message && typeof err.message === "string") {
+          displayError = err.message;
+        }
+      }
+      setError(displayError);
+    } finally {
+      setIsGoogleLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -127,13 +149,49 @@ export default function Login({ onRegisterClick, onForgotPasswordClick }: LoginP
           <div>
             <button
               type="submit"
-              disabled={isLoading}
+              disabled={isLoading || isGoogleLoading}
               className="flex w-full justify-center rounded-lg bg-[#f26522] hover:bg-[#ea580c] px-4 py-3 text-sm font-bold text-white shadow-md transition-all disabled:opacity-50 cursor-pointer"
             >
               {isLoading ? "Signing in..." : "Login"}
             </button>
           </div>
         </form>
+
+        <div className="relative my-4 flex items-center justify-center">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t border-zinc-800" />
+          </div>
+          <div className="relative bg-[#121212] px-3 text-[11px] font-semibold text-zinc-500 uppercase tracking-wider">
+            Or continue with
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={handleGoogleSignIn}
+          disabled={isGoogleLoading || isLoading}
+          className="flex w-full items-center justify-center gap-3 rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-3 text-sm font-bold text-zinc-200 shadow-sm transition-all hover:bg-zinc-800 hover:border-zinc-700 disabled:opacity-50 cursor-pointer"
+        >
+          <svg className="h-5 w-5 shrink-0" viewBox="0 0 24 24">
+            <path
+              fill="#EA4335"
+              d="M12 5c1.6 0 3 .6 4.1 1.6l3.1-3.1C17.3 1.7 14.8 1 12 1 7.5 1 3.7 3.6 1.9 7.3l3.7 2.9C6.5 7.2 9 5 12 5z"
+            />
+            <path
+              fill="#4285F4"
+              d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.5h6.5c-.3 1.5-1.1 2.8-2.4 3.7l3.7 2.9c2.2-2 3.7-5 3.7-8.8z"
+            />
+            <path
+              fill="#FBBC05"
+              d="M5.6 14.8c-.2-.7-.4-1.5-.4-2.3s.2-1.6.4-2.3L1.9 7.3C.7 9.7 0 12.3 0 15s.7 5.3 1.9 7.7l3.7-2.9c-.3-.8-.5-1.7-.5-2.6z"
+            />
+            <path
+              fill="#34A853"
+              d="M12 23c3.2 0 6-1.1 8-3l-3.7-2.9c-1.1.7-2.5 1.2-4.3 1.2-3 0-5.5-2.2-6.4-5.2L1.9 16c1.8 3.7 5.6 7 10.1 7z"
+            />
+          </svg>
+          {isGoogleLoading ? "Signing in with Google..." : "Sign in with Google"}
+        </button>
 
         <p className="text-center text-xs text-zinc-400 pt-2">
           Don't have an account?{" "}

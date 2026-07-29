@@ -26,6 +26,7 @@ import ClubForm from "./pages/ClubForm";
 import EventForm from "./pages/EventForm";
 import LogoManagement from "./pages/LogoManagement";
 import RoleManagement from "./pages/RoleManagement";
+import EventAnalytics from "./pages/EventAnalytics";
 
 function AppContent() {
   const { user, token, loading, logout } = useAuth();
@@ -139,6 +140,16 @@ function AppContent() {
               <Route path="/events" element={<Events filter="all" searchQuery={searchQuery} />} />
               <Route path="/events/add" element={<EventForm mode="add" />} />
               <Route path="/events/edit/:id" element={<EventForm mode="edit" />} />
+              <Route 
+                path="/event-analytics" 
+                element={
+                  user?.role === "super_admin" || user?.role === "club_admin" ? (
+                    <EventAnalytics />
+                  ) : (
+                    <Navigate to="/dashboard" replace />
+                  )
+                } 
+              />
               
               {/* Student specific submenus */}
               <Route path="/upcoming" element={<Events filter="upcoming" searchQuery={searchQuery} />} />

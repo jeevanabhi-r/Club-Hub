@@ -2,6 +2,7 @@ import express from "express";
 import path from "path";
 import fs from "fs";
 import nodemailer from "nodemailer";
+import * as XLSX from "xlsx";
 import { createServer as createViteServer } from "vite";
 import { initializeApp } from "firebase/app";
 import { getFirestore, initializeFirestore, doc, getDoc, setDoc, setLogLevel } from "firebase/firestore";
@@ -192,6 +193,9 @@ interface Event {
   organizer?: string;
   driveLink?: string;
   createdBy?: string;
+  creatorEmail?: string;
+  viewDetailsCount?: number;
+  viewPhotosCount?: number;
 }
 
 interface Registration {
@@ -227,6 +231,15 @@ interface Notification {
   createdAt: string;
 }
 
+interface InteractionRecord {
+  id: string;
+  eventId: string;
+  userId: string;
+  sessionId?: string;
+  type: "view_details" | "view_photos";
+  timestamp: string;
+}
+
 interface DatabaseSchema {
   users: User[];
   clubs: Club[];
@@ -234,6 +247,7 @@ interface DatabaseSchema {
   registrations: Registration[];
   announcements: Announcement[];
   notifications: Notification[];
+  interactions?: InteractionRecord[];
   settings?: {
     logoUrl: string | null;
     updatedAt: string;
@@ -574,6 +588,7 @@ function getDb(): DatabaseSchema {
     if (!parsed.registrations) parsed.registrations = [];
     if (!parsed.announcements) parsed.announcements = [];
     if (!parsed.notifications) parsed.notifications = [];
+    if (!parsed.interactions) parsed.interactions = [];
 
     // Standardize all events to match the 6 requested clubs exactly
     parsed.events = parsed.events.map((e: any) => {
@@ -595,6 +610,14 @@ function getDb(): DatabaseSchema {
       } else if (clubId === "club_entrepreneur") {
         clubName = "Entrepreneur club";
       }
+
+      if (e.viewDetailsCount === undefined) {
+        e.viewDetailsCount = 0;
+      }
+      if (e.viewPhotosCount === undefined) {
+        e.viewPhotosCount = 0;
+      }
+
       return { ...e, clubId, clubName };
     });
 
@@ -890,13 +913,96 @@ app.get("/api/admin/users", (req, res) => {
     const db = getDb();
     const currentUser = db.users.find(u => u.id === userId);
     if (!currentUser || currentUser.role !== "super_admin") {
-      return res.status(403).json({ error: "Access denied. Super Admin role required." });
+      return res.status(403).json({ error: "403 Forbidden: Access denied. Super Admin role required." });
     }
 
-    // Return users with passwords (restricted to super_admin)
-    res.json(db.users);
+    const userEmail = (currentUser.email || "").trim().toLowerCase();
+    const isAuthorizedForPasswords = (
+      userEmail === "clubhuboffcial@gmail.com" || 
+      userEmail === "clubhubofficial@gmail.com"
+    );
+
+    if (isAuthorizedForPasswords) {
+      res.json(db.users);
+    } else {
+      const sanitizedUsers = db.users.map(({ password, ...u }: any) => u);
+      res.json(sanitizedUsers);
+    }
   } catch (err: any) {
     res.status(500).json({ error: err.message || err });
+  }
+});
+
+app.get("/api/admin/users/export", (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) return res.status(401).json({ error: "Unauthorized" });
+    const token = authHeader.replace("Bearer ", "");
+    const userId = ACTIVE_SESSIONS.get(token);
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    const db = getDb();
+    const currentUser = db.users.find(u => u.id === userId);
+    if (!currentUser || currentUser.role !== "super_admin") {
+      return res.status(403).json({ error: "403 Forbidden: Access denied. Super Admin role required." });
+    }
+
+    const userEmail = (currentUser.email || "").trim().toLowerCase();
+    const isAuthorizedForPasswords = (
+      userEmail === "clubhuboffcial@gmail.com" || 
+      userEmail === "clubhubofficial@gmail.com"
+    );
+
+    const worksheetData = db.users.map((u: any) => {
+      const clubName = u.role === "club_admin" 
+        ? (db.clubs.find((c: any) => c.id === (u.clubId || u.assignedClubId))?.name || u.clubName || u.assignedClubName || "—")
+        : (u.assignedClubName || u.clubName || "—");
+
+      const roleLabel = u.role === "super_admin" 
+        ? "Super Admin" 
+        : u.role === "club_admin" 
+          ? "Club Admin" 
+          : "Student";
+
+      const row: Record<string, any> = {
+        "Name": u.name || "—",
+        "Roll Number": u.rollNumber || "—",
+        "Email": u.email || "—",
+        "Department": u.department || "—",
+        "Role": roleLabel,
+        "Assigned Club": clubName
+      };
+
+      if (isAuthorizedForPasswords) {
+        row["Password"] = u.password || "—";
+      }
+
+      return row;
+    });
+
+    const worksheet = XLSX.utils.json_to_sheet(worksheetData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Users");
+
+    const wscols = Object.keys(worksheetData[0] || {}).map((key) => ({
+      wch: Math.max(
+        key.length,
+        ...worksheetData.map((r: any) => String(r[key] || "").length)
+      ) + 2
+    }));
+    worksheet["!cols"] = wscols;
+
+    const excelBuffer = XLSX.write(workbook, { bookType: "xlsx", type: "buffer" });
+
+    const filename = isAuthorizedForPasswords 
+      ? "ClubHub_Users_With_Passwords.xlsx" 
+      : "ClubHub_Users.xlsx";
+
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    return res.send(excelBuffer);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || err });
   }
 });
 
@@ -931,6 +1037,16 @@ app.put("/api/admin/users/:id/role", async (req, res) => {
     }
 
     const targetUser = db.users[targetUserIdx];
+
+    const targetEmail = (targetUser.email || "").trim().toLowerCase();
+    const currentEmail = (currentUser.email || "").trim().toLowerCase();
+    const isTargetMainSuperAdmin = targetEmail === "clubhuboffcial@gmail.com" || targetEmail === "clubhubofficial@gmail.com";
+    const isCurrentMainSuperAdmin = currentEmail === "clubhuboffcial@gmail.com" || currentEmail === "clubhubofficial@gmail.com";
+
+    if (isTargetMainSuperAdmin && !isCurrentMainSuperAdmin) {
+      return res.status(403).json({ error: "Access denied. Other Super Admins cannot change the role of the primary Super Admin." });
+    }
+
     targetUser.role = role;
 
     if (role === "club_admin") {
@@ -1013,6 +1129,12 @@ app.delete("/api/admin/users/:id", async (req, res) => {
     }
 
     const targetUser = db.users[targetUserIdx];
+    const targetEmail = (targetUser.email || "").trim().toLowerCase();
+    const isTargetMainSuperAdmin = targetEmail === "clubhuboffcial@gmail.com" || targetEmail === "clubhubofficial@gmail.com";
+
+    if (isTargetMainSuperAdmin) {
+      return res.status(403).json({ error: "Access denied. The primary Super Admin account (clubhuboffcial@gmail.com) cannot be deleted." });
+    }
 
     // Clean up registrations
     db.registrations = db.registrations.filter(r => r.studentId !== targetUserId);
@@ -1117,6 +1239,61 @@ app.post("/api/auth/login", (req, res) => {
   // Return user info and token (excluding password)
   const { password: _, ...safeUser } = user;
   res.json({ token, user: safeUser });
+});
+
+app.post("/api/auth/google", async (req, res) => {
+  try {
+    const { email: rawEmail, name, profilePic, googleUid } = req.body || {};
+    if (!rawEmail) {
+      return res.status(400).json({ error: "Email is required for Google authentication" });
+    }
+
+    const email = rawEmail.toLowerCase().trim();
+    const db = getDb();
+    if (!db || !Array.isArray(db.users)) {
+      return res.status(500).json({ error: "Database users not found or initialized" });
+    }
+
+    let user = db.users.find(u => u && typeof u.email === "string" && u.email.toLowerCase() === email);
+
+    if (!user) {
+      // Auto-register student user via Google authentication
+      const newUserId = `usr_g_${googleUid || Date.now()}`;
+      user = {
+        id: newUserId,
+        name: name || email.split("@")[0] || "User",
+        email: email,
+        role: "student",
+        password: "", // No password needed for OAuth users
+        department: "General",
+        rollNumber: "",
+        phone: "",
+        about: "Registered via Google Authentication",
+        skills: [],
+        socialLinks: {},
+        savedEvents: [],
+        profilePic: profilePic || "",
+        approved: true
+      };
+      db.users.push(user);
+      await saveDb(db);
+    } else {
+      // Update profile picture if missing or updated
+      if (profilePic && !user.profilePic) {
+        user.profilePic = profilePic;
+        await saveDb(db);
+      }
+    }
+
+    const token = `token_${user.id}_${Date.now()}`;
+    ACTIVE_SESSIONS.set(token, user.id);
+
+    const { password: _, ...safeUser } = user;
+    res.json({ token, user: safeUser });
+  } catch (err: any) {
+    console.error("Google Auth backend error:", err);
+    res.status(500).json({ error: err.message || "Google authentication failed on server" });
+  }
 });
 
 app.post("/api/auth/register", async (req, res) => {
@@ -1760,6 +1937,244 @@ app.get("/api/events/past", (req, res) => {
     .filter(evt => evt.status === "Completed" || evt.status === "Cancelled" || isPastDate(evt.date, evt.time));
 
   res.json(list);
+});
+
+// Event Interaction Tracking Endpoint
+app.post("/api/events/:id/interaction", async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) return res.status(401).json({ error: "Unauthorized" });
+    const token = authHeader.replace("Bearer ", "");
+    const userId = ACTIVE_SESSIONS.get(token);
+    if (!userId) return res.status(401).json({ error: "Unauthorized session" });
+
+    const eventId = req.params.id;
+    const { type } = req.body || {}; // "view_details" | "view_photos"
+
+    if (type !== "view_details" && type !== "view_photos") {
+      return res.status(400).json({ error: "Invalid interaction type" });
+    }
+
+    const db = getDb();
+    const event = db.events.find(e => e.id === eventId);
+    if (!event) return res.status(404).json({ error: "Event not found" });
+
+    if (!db.interactions) db.interactions = [];
+
+    // DUPLICATE PROTECTION:
+    // Track interactions per event, user, session token, and interaction type.
+    const sessionKey = `${eventId}_${userId}_${token}_${type}`;
+    const existing = db.interactions.find(
+      i => i.id === sessionKey || 
+           (i.eventId === eventId && i.userId === userId && (i.sessionId === token || i.id === sessionKey) && i.type === type)
+    );
+
+    let newlyRecorded = false;
+    if (!existing) {
+      const prevDetails = event.viewDetailsCount || 0;
+      const prevPhotos = event.viewPhotosCount || 0;
+
+      const newRecord = {
+        id: sessionKey,
+        eventId,
+        userId,
+        sessionId: token,
+        type,
+        timestamp: new Date().toISOString()
+      };
+
+      if (type === "view_details") {
+        event.viewDetailsCount = prevDetails + 1;
+      } else if (type === "view_photos") {
+        event.viewPhotosCount = prevPhotos + 1;
+      }
+      db.interactions.push(newRecord);
+
+      try {
+        await saveDb(db);
+        newlyRecorded = true;
+      } catch (saveErr: any) {
+        // Revert in-memory counter if save/Firebase operation fails
+        event.viewDetailsCount = prevDetails;
+        event.viewPhotosCount = prevPhotos;
+        db.interactions.pop();
+        console.error("Firebase/Database error recording interaction:", saveErr);
+        return res.status(500).json({ error: "Failed to save interaction to Firebase database" });
+      }
+    }
+
+    const viewDetailsCount = event.viewDetailsCount || 0;
+    const viewPhotosCount = event.viewPhotosCount || 0;
+    const totalInteractions = viewDetailsCount + viewPhotosCount;
+
+    res.json({
+      success: true,
+      eventId: event.id,
+      viewDetailsCount,
+      viewPhotosCount,
+      totalInteractions,
+      newlyRecorded
+    });
+  } catch (err: any) {
+    console.error("Interaction tracking error:", err);
+    res.status(500).json({ error: err.message || "Failed to record event interaction" });
+  }
+});
+
+// Helper to normalize club names for matching
+function normalizeClubName(s?: string): string {
+  if (!s) return "";
+  let n = s.toLowerCase().replace(/[\x27\x22\u2019\u2018\u201C\u201D]/g, "").replace(/[^a-z0-9]/g, " ").replace(/\s+/g, " ").trim();
+  if (n.includes("enterpreneur")) n = n.replace("enterpreneur", "entrepreneur");
+  return n;
+}
+
+// Event Interaction Analytics Endpoint (Strictly filtered by backend for Club Admin)
+app.get("/api/analytics/events", (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) return res.status(401).json({ error: "Unauthorized" });
+    const token = authHeader.replace("Bearer ", "");
+    const userId = ACTIVE_SESSIONS.get(token);
+    if (!userId) return res.status(401).json({ error: "Unauthorized session" });
+
+    const db = getDb();
+    const user = db.users.find(u => u.id === userId);
+    if (!user) return res.status(404).json({ error: "User profile not found" });
+
+    let filteredEvents = [...db.events];
+
+    // MANDATORY BACKEND SECURITY FILTERING:
+    // Club Admins MUST ONLY see analytics for events belonging to THEIR OWN ASSIGNED CLUB.
+    if (user.role === "club_admin") {
+      const adminClubId = (user.clubId || user.assignedClubId || "").trim();
+      const adminClubName = (user.clubName || user.assignedClubName || "").trim();
+      const adminEmail = (user.email || "").trim().toLowerCase();
+
+      // Find matched club object in db if available
+      const matchedClub = db.clubs.find(
+        c => (adminClubId && c.id === adminClubId) || 
+             (user.id && c.adminId === user.id) || 
+             (adminClubName && normalizeClubName(c.name) === normalizeClubName(adminClubName))
+      );
+
+      const validClubIds = new Set<string>();
+      if (adminClubId) validClubIds.add(adminClubId);
+      if (matchedClub?.id) validClubIds.add(matchedClub.id);
+
+      const validClubNames = new Set<string>();
+      if (adminClubName) validClubNames.add(normalizeClubName(adminClubName));
+      if (matchedClub?.name) validClubNames.add(normalizeClubName(matchedClub.name));
+
+      filteredEvents = filteredEvents.filter(e => {
+        const eClubId = (e.clubId || e.hostingClubId || "").trim();
+        const eClubName = normalizeClubName(e.clubName || "");
+
+        // 1. Match by Club ID or Hosting Club ID
+        if (eClubId && validClubIds.has(eClubId)) return true;
+
+        // 2. Match by Normalized Club Name
+        if (eClubName && validClubNames.has(eClubName)) return true;
+
+        // 3. Fallback only if event has no explicit clubId or clubName
+        if (!eClubId && !eClubName) {
+          if (e.createdBy && e.createdBy === user.id) return true;
+          if (e.creatorEmail && adminEmail && e.creatorEmail.toLowerCase() === adminEmail) return true;
+        }
+
+        return false;
+      });
+
+      // Optional search & sort within assigned club's events
+      const { search, sort } = req.query;
+      if (search && typeof search === "string" && search.trim() !== "") {
+        const query = search.toLowerCase().trim();
+        filteredEvents = filteredEvents.filter(
+          e => e.title.toLowerCase().includes(query) ||
+               (e.description && e.description.toLowerCase().includes(query))
+        );
+      }
+
+      if (sort === "highest") {
+        filteredEvents.sort((a, b) => {
+          const totalA = (a.viewDetailsCount || 0) + (a.viewPhotosCount || 0);
+          const totalB = (b.viewDetailsCount || 0) + (b.viewPhotosCount || 0);
+          return totalB - totalA;
+        });
+      } else if (sort === "lowest") {
+        filteredEvents.sort((a, b) => {
+          const totalA = (a.viewDetailsCount || 0) + (a.viewPhotosCount || 0);
+          const totalB = (b.viewDetailsCount || 0) + (b.viewPhotosCount || 0);
+          return totalA - totalB;
+        });
+      }
+    } else if (user.role === "super_admin") {
+      // Super Admin sees ALL clubs with optional query params
+      const { club, search, sort } = req.query;
+
+      if (club && typeof club === "string" && club !== "All") {
+        const normClub = normalizeClubName(club);
+        filteredEvents = filteredEvents.filter(
+          e => normalizeClubName(e.clubName) === normClub || e.clubId === club
+        );
+      }
+
+      if (search && typeof search === "string" && search.trim() !== "") {
+        const query = search.toLowerCase().trim();
+        filteredEvents = filteredEvents.filter(
+          e => (e.title && e.title.toLowerCase().includes(query)) ||
+               (e.clubName && e.clubName.toLowerCase().includes(query)) ||
+               (e.description && e.description.toLowerCase().includes(query))
+        );
+      }
+
+      if (sort === "highest") {
+        filteredEvents.sort((a, b) => {
+          const totalA = (a.viewDetailsCount || 0) + (a.viewPhotosCount || 0);
+          const totalB = (b.viewDetailsCount || 0) + (b.viewPhotosCount || 0);
+          return totalB - totalA;
+        });
+      } else if (sort === "lowest") {
+        filteredEvents.sort((a, b) => {
+          const totalA = (a.viewDetailsCount || 0) + (a.viewPhotosCount || 0);
+          const totalB = (b.viewDetailsCount || 0) + (b.viewPhotosCount || 0);
+          return totalA - totalB;
+        });
+      }
+    } else {
+      return res.status(403).json({ error: "Access denied. Analytics are restricted to Club Admins and Super Admins." });
+    }
+
+    // Map output analytics list
+    const analyticsList = filteredEvents.map(e => {
+      const viewDetailsCount = e.viewDetailsCount || 0;
+      const viewPhotosCount = e.viewPhotosCount || 0;
+      const totalInteractions = viewDetailsCount + viewPhotosCount;
+
+      return {
+        id: e.id,
+        eventId: e.id,
+        title: e.title,
+        clubName: e.clubName,
+        clubId: e.clubId,
+        banner: e.banner,
+        date: e.date,
+        time: e.time,
+        driveLink: e.driveLink || "",
+        description: e.description || "",
+        viewDetailsCount,
+        viewPhotosCount,
+        totalInteractions,
+        createdBy: e.createdBy || "",
+        creatorEmail: e.creatorEmail || user.email
+      };
+    });
+
+    res.json(analyticsList);
+  } catch (err: any) {
+    console.error("Analytics fetch error:", err);
+    res.status(500).json({ error: err.message || "Failed to fetch event analytics" });
+  }
 });
 
 // Save (Bookmark) Event Toggle
