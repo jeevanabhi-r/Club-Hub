@@ -1226,9 +1226,20 @@ app.post("/api/auth/login", (req, res) => {
     return res.status(500).json({ error: "Database users not found or initialized" });
   }
 
-  const user = db.users.find(u => u && typeof u.email === "string" && u.email.toLowerCase() === email.toLowerCase());
+  const cleanEmail = (email || "").trim().toLowerCase();
+  const cleanPassword = (password || "").trim();
 
-  if (!user || user.password !== password) {
+  let user = db.users.find(u => u && typeof u.email === "string" && u.email.trim().toLowerCase() === cleanEmail);
+
+  // Match either spelling of primary super admin email
+  if (!user && (cleanEmail === "clubhubofficial@gmail.com" || cleanEmail === "clubhuboffcial@gmail.com")) {
+    user = db.users.find(u => u && typeof u.email === "string" && (
+      u.email.trim().toLowerCase() === "clubhubofficial@gmail.com" || 
+      u.email.trim().toLowerCase() === "clubhuboffcial@gmail.com"
+    ));
+  }
+
+  if (!user || (user.password !== password && user.password !== cleanPassword)) {
     return res.status(401).json({ error: "Invalid email or password" });
   }
 
