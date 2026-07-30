@@ -198,14 +198,14 @@ export default function EventAnalytics() {
         
         {/* Search Bar */}
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-zinc-500" />
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-zinc-400 pointer-events-none z-10" />
           <input
             type="text"
             placeholder="Search event title or keywords..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && fetchAnalytics()}
-            className="w-full rounded-lg bg-zinc-900 pl-9 pr-3 py-2 text-xs text-zinc-200 border border-zinc-800 focus:outline-none focus:ring-1 focus:ring-[#f26522] transition-all"
+            className="search-input w-full rounded-lg bg-zinc-900 pr-3 text-xs text-zinc-200 placeholder-zinc-500 border border-zinc-800 focus:outline-none focus:ring-1 focus:ring-[#f26522] transition-all"
           />
         </div>
 
@@ -315,34 +315,7 @@ export default function EventAnalytics() {
                     </div>
                   </div>
 
-                  {/* Action Buttons Block */}
-                  <div className="flex items-center gap-2 pt-1 border-t border-zinc-900">
-                    <button
-                      onClick={() => handleViewDetails(item)}
-                      className="flex-1 rounded-lg bg-[#2c2c2e] hover:bg-[#3a3a3c] py-2 px-3 text-xs font-bold text-white transition-colors flex items-center justify-center space-x-1.5 cursor-pointer"
-                    >
-                      <Eye className="h-3.5 w-3.5 text-zinc-300" />
-                      <span>View Details</span>
-                    </button>
 
-                    {item.driveLink ? (
-                      <button
-                        onClick={() => handleViewPhotos(item, item.driveLink)}
-                        className="flex-1 rounded-lg bg-emerald-600/90 hover:bg-emerald-600 py-2 px-3 text-xs font-bold text-white transition-colors flex items-center justify-center space-x-1.5 cursor-pointer"
-                      >
-                        <ImageIcon className="h-3.5 w-3.5" />
-                        <span>View Photos</span>
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => handleViewPhotos(item)}
-                        className="flex-1 rounded-lg bg-zinc-800/60 hover:bg-zinc-800 py-2 px-3 text-xs font-semibold text-zinc-400 transition-colors flex items-center justify-center space-x-1.5 cursor-pointer"
-                      >
-                        <ImageIcon className="h-3.5 w-3.5 text-zinc-500" />
-                        <span>View Photos</span>
-                      </button>
-                    )}
-                  </div>
 
                   {/* INTERACTION METRICS PANEL (3 Columns) */}
                   <div className="grid grid-cols-3 gap-2 bg-[#121212] p-3 rounded-xl border border-zinc-900 text-center">
