@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 import { useAuth } from "../context/AuthContext";
-import { Sparkles, Lock, Mail, ArrowLeft, User, Image, Compass, Calendar, QrCode, ClipboardList } from "lucide-react";
+import { Sparkles, Lock, Mail, ArrowLeft, User, Image, Compass, Calendar, QrCode, ClipboardList, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { toast } from "react-hot-toast";
+import axios from "axios";
 import { BrandLogo } from "../components/BrandLogo";
 import { AuthInput } from "../components/AuthInput";
 
@@ -18,6 +19,41 @@ export default function Register({ onLoginClick }: RegisterProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [error, setError] = useState("");
+  const [isEmailRegistered, setIsEmailRegistered] = useState<boolean | null>(null);
+  const [isCheckingEmail, setIsCheckingEmail] = useState(false);
+
+  const checkEmailAvailability = async (targetEmail: string) => {
+    const cleanEmail = targetEmail.trim().toLowerCase();
+    if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+      setIsEmailRegistered(null);
+      return;
+    }
+    setIsCheckingEmail(true);
+    try {
+      const response = await axios.post("/api/auth/check-email", { email: cleanEmail });
+      if (response.data?.registered) {
+        setIsEmailRegistered(true);
+      } else {
+        setIsEmailRegistered(false);
+      }
+    } catch {
+      setIsEmailRegistered(null);
+    } finally {
+      setIsCheckingEmail(false);
+    }
+  };
+
+  const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value.toLowerCase().trim();
+    setEmail(val);
+    setIsEmailRegistered(null);
+  };
+
+  const handleEmailBlur = () => {
+    if (email) {
+      checkEmailAvailability(email);
+    }
+  };
 
   const handleGoogleSignIn = async () => {
     setIsGoogleLoading(true);
@@ -77,6 +113,12 @@ export default function Register({ onLoginClick }: RegisterProps) {
       return;
     }
 
+    if (isEmailRegistered) {
+      setError("This email address is already registered. Please log in or use a different email.");
+      setIsLoading(false);
+      return;
+    }
+
     const regData = {
       name,
       email,
@@ -108,6 +150,10 @@ export default function Register({ onLoginClick }: RegisterProps) {
       }
       if (displayError === "[object Object]") {
         displayError = "Registration failed. Please check inputs.";
+      }
+      if (displayError.toLowerCase().includes("already registered") || displayError.toLowerCase().includes("already exists")) {
+        displayError = "This email address is already registered. Please log in or use a different email.";
+        setIsEmailRegistered(true);
       }
       setError(displayError);
     } finally {
@@ -248,8 +294,29 @@ export default function Register({ onLoginClick }: RegisterProps) {
                   placeholder="Enter your email"
                   icon={Mail}
                   value={email}
-                  onChange={(e) => setEmail(e.target.value.toLowerCase())}
+                  onChange={handleEmailChange}
+                  onBlur={handleEmailBlur}
                 />
+                {isEmailRegistered && (
+                  <div className="mt-1.5 flex items-center justify-between gap-2 rounded-lg bg-amber-500/10 border border-amber-500/20 px-3 py-2 text-xs text-amber-400 animate-in fade-in">
+                    <span className="flex items-center gap-1.5">
+                      <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-400" />
+                      Email is already registered.
+                    </span>
+                    <button
+                      type="button"
+                      onClick={onLoginClick}
+                      className="font-bold underline hover:text-amber-300 transition-colors cursor-pointer shrink-0"
+                    >
+                      Log In
+                    </button>
+                  </div>
+                )}
+                {isEmailRegistered === false && email.trim() && (
+                  <p className="mt-1.5 text-[11px] text-emerald-400 font-medium flex items-center gap-1 animate-in fade-in">
+                    <CheckCircle2 className="h-3.5 w-3.5" /> Email address is available
+                  </p>
+                )}
               </div>
 
               {/* Password */}

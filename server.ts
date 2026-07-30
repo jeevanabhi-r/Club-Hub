@@ -1307,6 +1307,20 @@ app.post("/api/auth/google", async (req, res) => {
   }
 });
 
+app.post("/api/auth/check-email", (req, res) => {
+  const rawEmail = req.body?.email || req.query?.email || "";
+  if (!rawEmail.trim()) {
+    return res.status(400).json({ error: "Email is required" });
+  }
+  const email = rawEmail.toLowerCase().trim();
+  const db = getDb();
+  if (!db || !Array.isArray(db.users)) {
+    return res.json({ registered: false });
+  }
+  const existing = db.users.find(u => u && typeof u.email === "string" && u.email.trim().toLowerCase() === email);
+  return res.json({ registered: !!existing });
+});
+
 app.post("/api/auth/register", async (req, res) => {
   const { name, email: rawEmail, password, role, department, rollNumber, phone, clubName, clubDescription, clubCategory } = req.body;
   const db = getDb();
@@ -1316,9 +1330,9 @@ app.post("/api/auth/register", async (req, res) => {
   }
 
   const email = rawEmail.toLowerCase().trim();
-  const existing = db.users.find(u => u.email.toLowerCase() === email);
+  const existing = db.users.find(u => u && typeof u.email === "string" && u.email.trim().toLowerCase() === email);
   if (existing) {
-    return res.status(400).json({ error: "Email already exists" });
+    return res.status(400).json({ error: "This email address is already registered. Please log in or use a different email." });
   }
 
   const userId = `usr_${Date.now()}`;
