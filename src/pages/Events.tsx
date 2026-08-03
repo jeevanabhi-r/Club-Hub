@@ -315,18 +315,18 @@ export default function Events({ searchQuery, filter = "all" }: EventsProps) {
               >
                 {/* Banner */}
                 <div className="relative h-44 w-full bg-zinc-950/40 overflow-hidden shrink-0 border-b border-zinc-900 flex items-center justify-center">
-                  {evt.banner ? (
+                  {evt.banner && (
                     <img 
                       src={evt.banner} 
                       alt={evt.title}
-                      className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                      onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                      className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105 relative z-10"
                     />
-                  ) : (
-                    <div className="flex flex-col items-center justify-center text-zinc-600 space-y-1">
-                      <Calendar className="h-7 w-7 opacity-30 text-zinc-500" />
-                      <span className="text-[9px] font-bold tracking-wider uppercase opacity-30">No Event Banner</span>
-                    </div>
                   )}
+                  <div className="absolute inset-0 flex flex-col items-center justify-center text-zinc-600 space-y-1 bg-zinc-950/40 z-0">
+                    <Calendar className="h-7 w-7 opacity-30 text-zinc-500" />
+                    <span className="text-[9px] font-bold tracking-wider uppercase opacity-30">No Event Banner</span>
+                  </div>
                   {/* Mockup Badge */}
                   <span className={`absolute top-3 right-3 px-2 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase bg-black/60 backdrop-blur border border-white/10 ${
                     isPast ? "text-zinc-400" : "text-emerald-400"
@@ -465,17 +465,19 @@ export default function Events({ searchQuery, filter = "all" }: EventsProps) {
 
               <div className="space-y-4 text-xs overflow-y-auto pr-1">
                 <div className="relative w-full bg-zinc-950/90 rounded-xl border border-zinc-800 flex items-center justify-center overflow-hidden p-1 group min-h-[220px] max-h-[420px]">
-                  {selectedEventDetails.banner ? (
+                  {selectedEventDetails.banner && (
                     <>
                       <img 
                         src={selectedEventDetails.banner} 
                         alt=""
                         aria-hidden="true"
+                        onError={(e) => { e.currentTarget.style.display = 'none'; }}
                         className="absolute inset-0 w-full h-full object-cover blur-xl scale-110 opacity-30 pointer-events-none"
                       />
                       <img 
                         src={selectedEventDetails.banner} 
                         alt={selectedEventDetails.title}
+                        onError={(e) => { e.currentTarget.style.display = 'none'; }}
                         className="w-full max-h-[400px] object-contain relative z-10 rounded-lg cursor-zoom-in transition-transform group-hover:scale-[1.01]"
                         onClick={() => setFullViewImage(selectedEventDetails.banner)}
                       />
@@ -489,12 +491,11 @@ export default function Events({ searchQuery, filter = "all" }: EventsProps) {
                         <span>Full Image</span>
                       </button>
                     </>
-                  ) : (
-                    <div className="flex flex-col items-center justify-center text-zinc-600 space-y-1 p-6">
-                      <Calendar className="h-7 w-7 opacity-30 text-zinc-500" />
-                      <span className="text-[9px] font-bold tracking-wider uppercase opacity-30">No Event Banner</span>
-                    </div>
                   )}
+                  <div className="flex flex-col items-center justify-center text-zinc-600 space-y-1 p-6">
+                    <Calendar className="h-7 w-7 opacity-30 text-zinc-500" />
+                    <span className="text-[9px] font-bold tracking-wider uppercase opacity-30">No Event Banner</span>
+                  </div>
                 </div>
                 <div>
                   <h4 className="font-bold text-sm text-white mb-1">
