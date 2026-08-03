@@ -13,13 +13,15 @@ import {
   Clock, 
   X, 
   Sparkles,
-  ExternalLink
+  ExternalLink,
+  Maximize2
 } from "lucide-react";
 import { EventAnalyticsData } from "../types";
 import { formatToDDMMYY, parseEventDate, getEventEndTimestamp } from "../utils/date";
 import { EventCardSkeleton } from "../components/Skeletons";
 import CalendarDatePicker, { DateFilterValue, DEFAULT_ALL_FILTER } from "../components/CalendarDatePicker";
 import { toast } from "react-hot-toast";
+import ImageLightboxModal from "../components/ImageLightboxModal";
 
 export default function EventAnalytics() {
   const { user } = useAuth();
@@ -35,6 +37,7 @@ export default function EventAnalytics() {
 
   // Details Modal State
   const [selectedEvent, setSelectedEvent] = useState<EventAnalyticsData | null>(null);
+  const [fullViewImage, setFullViewImage] = useState<string | null>(null);
 
   const fetchAnalytics = async () => {
     if (!user) return;
@@ -278,7 +281,7 @@ export default function EventAnalytics() {
                 className="rounded-xl overflow-hidden bg-[#1e1e1e] border border-zinc-800 hover:border-zinc-700 transition-all flex flex-col justify-between shadow-xl group"
               >
                 {/* Event Image Banner */}
-                <div className="relative h-44 w-full bg-zinc-950/50 border-b border-zinc-900 overflow-hidden shrink-0 flex items-center justify-center">
+                <div className="relative h-44 w-full bg-zinc-950/40 border-b border-zinc-900 overflow-hidden shrink-0 flex items-center justify-center">
                   {item.banner ? (
                     <img 
                       src={item.banner} 
@@ -381,15 +384,33 @@ export default function EventAnalytics() {
             {/* Modal Body */}
             <div className="space-y-4 text-xs overflow-y-auto pr-1">
               {/* Banner */}
-              <div className="relative w-full h-40 bg-zinc-950/40 rounded-lg border border-zinc-800 flex items-center justify-center overflow-hidden">
+              <div className="relative w-full bg-zinc-950/90 rounded-xl border border-zinc-800 flex items-center justify-center overflow-hidden p-1 group min-h-[220px] max-h-[420px]">
                 {selectedEvent.banner ? (
-                  <img 
-                    src={selectedEvent.banner} 
-                    className="w-full h-full object-cover" 
-                    alt={selectedEvent.title} 
-                  />
+                  <>
+                    <img 
+                      src={selectedEvent.banner} 
+                      alt=""
+                      aria-hidden="true"
+                      className="absolute inset-0 w-full h-full object-cover blur-xl scale-110 opacity-30 pointer-events-none"
+                    />
+                    <img 
+                      src={selectedEvent.banner} 
+                      alt={selectedEvent.title}
+                      className="w-full max-h-[400px] object-contain relative z-10 rounded-lg cursor-zoom-in transition-transform group-hover:scale-[1.01]"
+                      onClick={() => setFullViewImage(selectedEvent.banner)}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setFullViewImage(selectedEvent.banner)}
+                      className="absolute top-3 right-3 z-20 px-2.5 py-1.5 rounded-lg bg-black/80 hover:bg-black text-white backdrop-blur-md opacity-90 group-hover:opacity-100 transition-opacity text-[11px] font-semibold flex items-center gap-1.5 border border-white/20 shadow-lg cursor-pointer"
+                      title="View Full Size Image"
+                    >
+                      <Maximize2 className="h-3.5 w-3.5 text-[#f26522]" />
+                      <span>Full Image</span>
+                    </button>
+                  </>
                 ) : (
-                  <div className="flex flex-col items-center justify-center text-zinc-600 space-y-1">
+                  <div className="flex flex-col items-center justify-center text-zinc-600 space-y-1 p-6">
                     <Calendar className="h-7 w-7 opacity-30 text-zinc-500" />
                     <span className="text-[9px] font-bold tracking-wider uppercase opacity-30">No Event Banner</span>
                   </div>
@@ -458,6 +479,13 @@ export default function EventAnalytics() {
           </div>
         </div>
       )}
+
+      {/* Image Lightbox Modal */}
+      <ImageLightboxModal 
+        imageUrl={fullViewImage} 
+        onClose={() => setFullViewImage(null)} 
+        title={selectedEvent?.title} 
+      />
 
     </div>
   );

@@ -17,7 +17,8 @@ import {
   Filter,
   Search,
   Sparkles,
-  Eye
+  Eye,
+  Maximize2
 } from "lucide-react";
 import { Event, Registration } from "../types";
 import { EventCardSkeleton } from "../components/Skeletons";
@@ -27,6 +28,7 @@ import { canEditEvent, canDeleteEvent, isSuperAdmin } from "../utils/permissions
 import CreateEventModal from "../components/CreateEventModal";
 import { ConfirmModal } from "../components/ConfirmModal";
 import CalendarDatePicker, { DateFilterValue, DEFAULT_ALL_FILTER } from "../components/CalendarDatePicker";
+import ImageLightboxModal from "../components/ImageLightboxModal";
 
 interface EventsProps {
   searchQuery: string;
@@ -53,6 +55,7 @@ export default function Events({ searchQuery, filter = "all" }: EventsProps) {
 
   // Selected event details modal
   const [selectedEventDetails, setSelectedEventDetails] = useState<Event | null>(null);
+  const [fullViewImage, setFullViewImage] = useState<string | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [eventToEdit, setEventToEdit] = useState<Event | null>(null);
 
@@ -461,15 +464,33 @@ export default function Events({ searchQuery, filter = "all" }: EventsProps) {
               </div>
 
               <div className="space-y-4 text-xs overflow-y-auto pr-1">
-                <div className="relative w-full h-40 bg-zinc-950/40 rounded-lg border border-zinc-800 flex items-center justify-center overflow-hidden">
+                <div className="relative w-full bg-zinc-950/90 rounded-xl border border-zinc-800 flex items-center justify-center overflow-hidden p-1 group min-h-[220px] max-h-[420px]">
                   {selectedEventDetails.banner ? (
-                    <img 
-                      src={selectedEventDetails.banner} 
-                      className="w-full h-full object-cover" 
-                      alt="Banner" 
-                    />
+                    <>
+                      <img 
+                        src={selectedEventDetails.banner} 
+                        alt=""
+                        aria-hidden="true"
+                        className="absolute inset-0 w-full h-full object-cover blur-xl scale-110 opacity-30 pointer-events-none"
+                      />
+                      <img 
+                        src={selectedEventDetails.banner} 
+                        alt={selectedEventDetails.title}
+                        className="w-full max-h-[400px] object-contain relative z-10 rounded-lg cursor-zoom-in transition-transform group-hover:scale-[1.01]"
+                        onClick={() => setFullViewImage(selectedEventDetails.banner)}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setFullViewImage(selectedEventDetails.banner)}
+                        className="absolute top-3 right-3 z-20 px-2.5 py-1.5 rounded-lg bg-black/80 hover:bg-black text-white backdrop-blur-md opacity-90 group-hover:opacity-100 transition-opacity text-[11px] font-semibold flex items-center gap-1.5 border border-white/20 shadow-lg cursor-pointer"
+                        title="View Full Size Image"
+                      >
+                        <Maximize2 className="h-3.5 w-3.5 text-[#f26522]" />
+                        <span>Full Image</span>
+                      </button>
+                    </>
                   ) : (
-                    <div className="flex flex-col items-center justify-center text-zinc-600 space-y-1">
+                    <div className="flex flex-col items-center justify-center text-zinc-600 space-y-1 p-6">
                       <Calendar className="h-7 w-7 opacity-30 text-zinc-500" />
                       <span className="text-[9px] font-bold tracking-wider uppercase opacity-30">No Event Banner</span>
                     </div>
@@ -537,6 +558,13 @@ export default function Events({ searchQuery, filter = "all" }: EventsProps) {
         description="Are you sure you want to delete this event? This will also wipe all registered participants!"
         confirmText="Delete Event"
         type="danger"
+      />
+
+      {/* Image Lightbox Modal */}
+      <ImageLightboxModal 
+        imageUrl={fullViewImage} 
+        onClose={() => setFullViewImage(null)} 
+        title={selectedEventDetails?.title} 
       />
 
     </div>

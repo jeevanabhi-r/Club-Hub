@@ -329,6 +329,12 @@ export default function CreateEventModal({ isOpen, onClose, onSuccess, eventToEd
                 className="flex-1 rounded-lg bg-[#1e1e1e] border border-zinc-800/80 px-3.5 py-2 text-xs text-zinc-200 placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-[#f26522] transition-all"
               />
             </div>
+
+            {bannerUrl && (
+              <div className="h-28 w-full rounded-lg border border-zinc-800 overflow-hidden mt-2">
+                <img src={bannerUrl} alt="Banner Preview" className="w-full h-full object-cover" />
+              </div>
+            )}
           </div>
 
           {/* Google Drive Link (Optional) */}

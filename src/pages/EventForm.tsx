@@ -496,7 +496,7 @@ export default function EventForm({ mode }: EventFormProps) {
               >
                 {banner ? (
                   <div className="text-center space-y-2 w-full">
-                    <img src={banner} alt="Banner Preview" className="h-16 w-full object-cover rounded-lg border border-zinc-800" />
+                    <img src={banner} alt="Banner Preview" className="h-32 w-full object-cover rounded-lg border border-zinc-800" />
                     <p className="text-[10px] text-zinc-500">Banner saved</p>
                     <button 
                       type="button" 
@@ -542,7 +542,7 @@ export default function EventForm({ mode }: EventFormProps) {
               >
                 {poster ? (
                   <div className="text-center space-y-2">
-                    <img src={poster} alt="Poster Preview" className="h-24 w-16 object-cover rounded-lg border border-zinc-800 mx-auto" />
+                    <img src={poster} alt="Poster Preview" className="h-32 w-24 object-cover rounded-lg border border-zinc-800 mx-auto" />
                     <p className="text-[10px] text-zinc-500">Poster saved</p>
                     <button 
                       type="button" 

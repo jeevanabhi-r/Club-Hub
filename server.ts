@@ -1899,34 +1899,8 @@ function isPastDate(dateStr: string, timeStr?: string): boolean {
       }
     }
 
-    // Extract time
-    let hours = 23;
-    let minutes = 59;
-    let seconds = 59;
-
-    if (timeStr && String(timeStr).trim()) {
-      const trimmedTime = String(timeStr).trim();
-      const timeParts = trimmedTime.split(/[-–—to]/i);
-      const lastTimePart = timeParts[timeParts.length - 1].trim();
-
-      const timeMatch = lastTimePart.match(/(\d{1,2})(?::(\d{2}))?\s*(AM|PM|am|pm)?/);
-      if (timeMatch) {
-        let h = parseInt(timeMatch[1], 10);
-        const m = timeMatch[2] ? parseInt(timeMatch[2], 10) : 0;
-        const ampm = timeMatch[3] ? timeMatch[3].toUpperCase() : null;
-
-        if (ampm === "PM" && h < 12) h += 12;
-        if (ampm === "AM" && h === 12) h = 0;
-
-        if (h >= 0 && h <= 23 && m >= 0 && m <= 59) {
-          hours = h;
-          minutes = m;
-          seconds = 0;
-        }
-      }
-    }
-
-    const finalDate = new Date(maxCandidate.year, maxCandidate.month, maxCandidate.day, hours, minutes, seconds);
+    // Events remain active/upcoming throughout their entire scheduled day and only pass after the day completes (23:59:59.999)
+    const finalDate = new Date(maxCandidate.year, maxCandidate.month, maxCandidate.day, 23, 59, 59, 999);
     return Date.now() > finalDate.getTime();
   } catch (e) {
     return false;

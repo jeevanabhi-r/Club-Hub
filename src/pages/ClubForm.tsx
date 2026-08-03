@@ -380,7 +380,7 @@ export default function ClubForm({ mode }: ClubFormProps) {
               >
                 {banner ? (
                   <div className="text-center space-y-2 w-full">
-                    <img src={banner} alt="Banner Preview" className="h-16 w-full object-cover rounded-lg border border-zinc-800" />
+                    <img src={banner} alt="Banner Preview" className="h-28 w-full object-cover rounded-lg border border-zinc-800" />
                     <p className="text-[10px] text-zinc-500">Banner saved</p>
                     <button 
                       type="button" 
