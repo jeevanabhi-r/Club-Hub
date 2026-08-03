@@ -105,7 +105,7 @@ app.post("/api/upload", (req, res) => {
   try {
     const base64Data = data.includes("base64,") ? data.split("base64,")[1] : data;
     const buffer = Buffer.from(base64Data, "base64");
-    const fileExtension = type ? type.split("/")[1] || "png" : "png";
+    const fileExtension = type ? (type.split("/")[1] || "png").replace(/[^a-zA-Z0-9]/g, "") : "png";
     const fileName = `upload_${Date.now()}_${Math.floor(Math.random() * 1000)}.${fileExtension}`;
     const uploadDir = process.env.VERCEL ? "/tmp/uploads" : path.join(process.cwd(), "uploads");
 
@@ -117,9 +117,7 @@ app.post("/api/upload", (req, res) => {
     fs.writeFileSync(filePath, buffer);
 
     const downloadUrl = `/uploads/${fileName}`;
-    // Store self-contained data URL so image persists reliably in db.json across dev server restarts
-    const returnUrl = (typeof data === "string" && data.startsWith("data:")) ? data : downloadUrl;
-    res.json({ url: returnUrl, fileUrl: downloadUrl });
+    res.json({ url: downloadUrl, fileUrl: downloadUrl });
   } catch (err: any) {
     console.error("Upload error:", err);
     res.status(500).json({ error: "Failed to save file on server" });
@@ -765,9 +763,10 @@ function getDb(): DatabaseSchema {
       }
     }
 
-    cachedDb = parsed;
+    const cleaned = convertBase64ToFiles(parsed);
+    cachedDb = cleaned;
     lastSyncTime = Date.now();
-    return parsed as DatabaseSchema;
+    return cleaned as DatabaseSchema;
   } catch (error) {
     console.warn("Failed to parse database file, resetting to defaults...", error);
     const data = initialDatabase();
@@ -776,6 +775,44 @@ function getDb(): DatabaseSchema {
     lastSyncTime = Date.now();
     return data;
   }
+}
+
+function convertBase64ToFiles(obj: any): any {
+  if (!obj) return obj;
+  if (typeof obj === "string") {
+    if (obj.startsWith("data:image/") || obj.startsWith("data:application/")) {
+      try {
+        const matches = obj.match(/^data:([^;]+);base64,(.+)$/);
+        if (matches && matches[2]) {
+          const mimeType = matches[1];
+          const base64Data = matches[2];
+          const fileExtension = mimeType.split("/")[1] || "png";
+          const fileName = `upload_auto_${Date.now()}_${Math.floor(Math.random() * 10000)}.${fileExtension}`;
+          const uploadDir = process.env.VERCEL ? "/tmp/uploads" : path.join(process.cwd(), "uploads");
+          if (!fs.existsSync(uploadDir)) {
+            fs.mkdirSync(uploadDir, { recursive: true });
+          }
+          const filePath = path.join(uploadDir, fileName);
+          fs.writeFileSync(filePath, Buffer.from(base64Data, "base64"));
+          return `/uploads/${fileName}`;
+        }
+      } catch (err) {
+        console.error("Failed to auto-convert base64 string to file:", err);
+      }
+    }
+    return obj;
+  }
+  if (Array.isArray(obj)) {
+    return obj.map(convertBase64ToFiles);
+  }
+  if (typeof obj === "object") {
+    const res: any = {};
+    for (const key of Object.keys(obj)) {
+      res[key] = convertBase64ToFiles(obj[key]);
+    }
+    return res;
+  }
+  return obj;
 }
 
 function sanitizeForFirestore(obj: any): any {
@@ -802,23 +839,24 @@ function sanitizeForFirestore(obj: any): any {
 }
 
 async function saveDb(data: DatabaseSchema): Promise<void> {
-  // Update in-memory cache immediately
-  cachedDb = data;
+  // Convert any embedded base64 data URLs to disk files first to keep db.json small (< 100KB)
+  const cleanedData = convertBase64ToFiles(data);
+  cachedDb = cleanedData;
   lastSyncTime = Date.now();
 
   try {
-    fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2), "utf8");
+    fs.writeFileSync(DB_FILE, JSON.stringify(cleanedData, null, 2), "utf8");
   } catch (err) {
     console.error("Local database file write failed:", err);
   }
   
   try {
     if (adminDb) {
-      await adminDb.collection("system_data").doc("database").set(sanitizeForFirestore(data));
+      await adminDb.collection("system_data").doc("database").set(sanitizeForFirestore(cleanedData));
       console.log("[Admin SDK] Firestore cloud backup succeeded!");
     } else if (firestoreDb) {
       const docRef = doc(firestoreDb, "system_data", "database");
-      await setDoc(docRef, sanitizeForFirestore(data));
+      await setDoc(docRef, sanitizeForFirestore(cleanedData));
       console.log("Firestore cloud backup succeeded!");
     }
   } catch (err: any) {
