@@ -81,22 +81,51 @@ export default function ClubForm({ mode }: ClubFormProps) {
         if (type === "logo") setUploadingLogo(true);
         else setUploadingBanner(true);
 
-        const res = await axios.post("/api/upload", {
-          name: file.name,
-          type: file.type,
-          data: reader.result as string
-        });
+        const img = new Image();
+        img.src = reader.result as string;
+        img.onload = async () => {
+          const canvas = document.createElement("canvas");
+          const maxWidth = 1200;
+          let width = img.width;
+          let height = img.height;
+          if (width > maxWidth) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+          }
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          let dataUrl = reader.result as string;
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, width, height);
+            dataUrl = canvas.toDataURL("image/jpeg", 0.82);
+          }
 
-        if (type === "logo") {
-          setLogo(res.data.url);
-          toast.success("Logo uploaded and saved successfully!");
-        } else {
-          setBanner(res.data.url);
-          toast.success("Banner uploaded and saved successfully!");
-        }
+          const res = await axios.post("/api/upload", {
+            name: file.name,
+            type: "image/jpeg",
+            data: dataUrl
+          });
+
+          if (type === "logo") {
+            setLogo(res.data.url || dataUrl);
+            toast.success("Logo uploaded and saved!");
+          } else {
+            setBanner(res.data.url || dataUrl);
+            toast.success("Banner uploaded and saved!");
+          }
+          setUploadingLogo(false);
+          setUploadingBanner(false);
+        };
+        img.onerror = () => {
+          if (type === "logo") setLogo(reader.result as string);
+          else setBanner(reader.result as string);
+          toast.success("Image selected!");
+          setUploadingLogo(false);
+          setUploadingBanner(false);
+        };
       } catch (err) {
         toast.error("Failed to upload image. Please try again.");
-      } finally {
         setUploadingLogo(false);
         setUploadingBanner(false);
       }

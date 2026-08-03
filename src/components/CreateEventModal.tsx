@@ -94,24 +94,56 @@ export default function CreateEventModal({ isOpen, onClose, onSuccess, eventToEd
       const file = e.target.files[0];
       setSelectedFileName(file.name);
 
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = async () => {
-        try {
-          setUploadingImage(true);
-          const res = await axios.post("/api/upload", {
-            name: file.name,
-            type: file.type,
-            data: reader.result as string
-          });
-          setBannerUrl(res.data.url);
-          toast.success("Cover image uploaded successfully!");
-        } catch (err) {
-          toast.error("Failed to upload cover image");
-        } finally {
-          setUploadingImage(false);
-        }
-      };
+      try {
+        setUploadingImage(true);
+        // Compress image using canvas for lightweight & permanent storage in db.json
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = async () => {
+          try {
+            const img = new Image();
+            img.src = reader.result as string;
+            img.onload = async () => {
+              const canvas = document.createElement("canvas");
+              const maxWidth = 1200;
+              let width = img.width;
+              let height = img.height;
+              if (width > maxWidth) {
+                height = Math.round((height * maxWidth) / width);
+                width = maxWidth;
+              }
+              canvas.width = width;
+              canvas.height = height;
+              const ctx = canvas.getContext("2d");
+              let dataUrl = reader.result as string;
+              if (ctx) {
+                ctx.drawImage(img, 0, 0, width, height);
+                dataUrl = canvas.toDataURL("image/jpeg", 0.82);
+              }
+
+              const res = await axios.post("/api/upload", {
+                name: file.name,
+                type: "image/jpeg",
+                data: dataUrl
+              });
+              setBannerUrl(res.data.url || dataUrl);
+              toast.success("Cover image uploaded and saved!");
+              setUploadingImage(false);
+            };
+            img.onerror = () => {
+              setBannerUrl(reader.result as string);
+              toast.success("Cover image selected!");
+              setUploadingImage(false);
+            };
+          } catch (err) {
+            toast.error("Failed to upload cover image");
+            setUploadingImage(false);
+          }
+        };
+      } catch (err) {
+        toast.error("Failed to upload cover image");
+        setUploadingImage(false);
+      }
     }
   };
 
@@ -331,8 +363,17 @@ export default function CreateEventModal({ isOpen, onClose, onSuccess, eventToEd
             </div>
 
             {bannerUrl && (
-              <div className="h-28 w-full rounded-lg border border-zinc-800 overflow-hidden mt-2">
-                <img src={bannerUrl} alt="Banner Preview" className="w-full h-full object-cover" />
+              <div className="h-32 w-full rounded-lg border border-zinc-800 overflow-hidden mt-2 relative bg-zinc-950 flex items-center justify-center">
+                <img 
+                  src={bannerUrl} 
+                  alt="Banner Preview" 
+                  onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                  className="w-full h-full object-cover relative z-10" 
+                />
+                <div className="absolute inset-0 flex flex-col items-center justify-center p-3 text-center text-zinc-500 z-0 space-y-1">
+                  <span className="text-xs font-semibold text-zinc-400">Previous cover link expired or empty</span>
+                  <span className="text-[10px] text-zinc-600">Choose a file above or paste an image URL to update</span>
+                </div>
               </div>
             )}
           </div>

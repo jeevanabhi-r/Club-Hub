@@ -80,7 +80,7 @@ export default function Clubs() {
           </h1>
           <p className="text-xs text-zinc-400">Discover and join clubs hosting coding, robotics, theater, and sports activities</p>
         </div>
-        {user?.role === "club_admin" && (
+        {(user?.role === "club_admin" || user?.role === "super_admin") && (
           <Link
             to="/clubs/add"
             className="flex items-center space-x-1.5 rounded-lg bg-[#f26522] hover:bg-[#ea580c] px-3.5 py-2 text-xs font-bold text-white transition-all shadow-lg self-start md:self-auto cursor-pointer"
@@ -133,53 +133,67 @@ export default function Clubs() {
           {filteredClubs.map(club => (
             <div 
               key={club.id} 
-              className="p-6 rounded-xl bg-slate-900/30 border border-slate-850 hover:border-slate-800 transition-all flex flex-col justify-between space-y-4"
+              className="rounded-xl bg-slate-900/30 border border-slate-850 hover:border-slate-800 transition-all flex flex-col justify-between overflow-hidden"
             >
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-3xl">{club.logo || "🌟"}</span>
-                  <div className="flex items-center gap-1.5">
-                    <span className="px-2.5 py-0.5 rounded text-[9px] font-bold bg-slate-950 border border-slate-850 text-slate-400 capitalize">
-                      {club.category}
-                    </span>
-                    {!club.approved && (
-                      <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20">
-                        Pending Approval
-                      </span>
-                    )}
-                  </div>
+              {/* Club Cover Banner */}
+              {club.banner && (
+                <div className="relative h-28 w-full bg-zinc-950/60 border-b border-zinc-900 overflow-hidden shrink-0">
+                  <img 
+                    src={club.banner} 
+                    alt={club.name}
+                    onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                    className="w-full h-full object-cover"
+                  />
                 </div>
-                <h3 className="font-display font-semibold text-slate-200 text-sm leading-snug">
-                  {club.name}
-                </h3>
-                <p className="text-xs text-slate-400 leading-relaxed mt-2 line-clamp-3">
-                  {club.description}
-                </p>
-              </div>
+              )}
 
-              <div className="flex items-center justify-between border-t border-zinc-900 pt-4 mt-2 text-[10px] text-zinc-400">
-                <div className="flex items-center gap-1">
-                  <Users className="h-3.5 w-3.5 text-emerald-500" />
-                  <span>{club.memberCount || 1} members</span>
-                </div>
-                {user?.role === "club_admin" && (
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      onClick={() => navigate(`/clubs/edit/${club.id}`)}
-                      className="rounded-lg p-1.5 bg-[#2c2c2e] hover:bg-[#3a3a3c] text-zinc-300 transition-colors cursor-pointer"
-                      title="Edit Club"
-                    >
-                      <Edit3 className="h-3.5 w-3.5" />
-                    </button>
-                    <button
-                      onClick={() => setDeleteClubId(club.id)}
-                      className="rounded-lg p-1.5 bg-[#2c2c2e] hover:bg-[#3a3a3c] text-rose-400 hover:text-rose-300 transition-colors cursor-pointer"
-                      title="Delete Club"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
+              <div className="p-6 flex-1 flex flex-col justify-between space-y-4">
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-3xl">{club.logo || "🌟"}</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="px-2.5 py-0.5 rounded text-[9px] font-bold bg-slate-950 border border-slate-850 text-slate-400 capitalize">
+                        {club.category}
+                      </span>
+                      {!club.approved && (
+                        <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                          Pending Approval
+                        </span>
+                      )}
+                    </div>
                   </div>
-                )}
+                  <h3 className="font-display font-semibold text-slate-200 text-sm leading-snug">
+                    {club.name}
+                  </h3>
+                  <p className="text-xs text-slate-400 leading-relaxed mt-2 line-clamp-3">
+                    {club.description}
+                  </p>
+                </div>
+
+                <div className="flex items-center justify-between border-t border-zinc-900 pt-4 mt-2 text-[10px] text-zinc-400">
+                  <div className="flex items-center gap-1">
+                    <Users className="h-3.5 w-3.5 text-emerald-500" />
+                    <span>{club.memberCount || 1} members</span>
+                  </div>
+                  {(user?.role === "club_admin" || user?.role === "super_admin") && (
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => navigate(`/clubs/edit/${club.id}`)}
+                        className="rounded-lg p-1.5 bg-[#2c2c2e] hover:bg-[#3a3a3c] text-zinc-300 transition-colors cursor-pointer"
+                        title="Edit Club"
+                      >
+                        <Edit3 className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        onClick={() => setDeleteClubId(club.id)}
+                        className="rounded-lg p-1.5 bg-[#2c2c2e] hover:bg-[#3a3a3c] text-rose-400 hover:text-rose-300 transition-colors cursor-pointer"
+                        title="Delete Club"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           ))}

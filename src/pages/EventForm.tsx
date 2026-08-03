@@ -122,22 +122,51 @@ export default function EventForm({ mode }: EventFormProps) {
         if (type === "banner") setUploadingBanner(true);
         else setUploadingPoster(true);
 
-        const res = await axios.post("/api/upload", {
-          name: file.name,
-          type: file.type,
-          data: reader.result as string
-        });
+        const img = new Image();
+        img.src = reader.result as string;
+        img.onload = async () => {
+          const canvas = document.createElement("canvas");
+          const maxWidth = 1200;
+          let width = img.width;
+          let height = img.height;
+          if (width > maxWidth) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+          }
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          let dataUrl = reader.result as string;
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, width, height);
+            dataUrl = canvas.toDataURL("image/jpeg", 0.82);
+          }
 
-        if (type === "banner") {
-          setBanner(res.data.url);
-          toast.success("Event banner uploaded successfully!");
-        } else {
-          setPoster(res.data.url);
-          toast.success("Event poster uploaded successfully!");
-        }
+          const res = await axios.post("/api/upload", {
+            name: file.name,
+            type: "image/jpeg",
+            data: dataUrl
+          });
+
+          if (type === "banner") {
+            setBanner(res.data.url || dataUrl);
+            toast.success("Event banner uploaded and saved!");
+          } else {
+            setPoster(res.data.url || dataUrl);
+            toast.success("Event poster uploaded and saved!");
+          }
+          setUploadingBanner(false);
+          setUploadingPoster(false);
+        };
+        img.onerror = () => {
+          if (type === "banner") setBanner(reader.result as string);
+          else setPoster(reader.result as string);
+          toast.success("Image selected!");
+          setUploadingBanner(false);
+          setUploadingPoster(false);
+        };
       } catch (err) {
         toast.error("Failed to upload image. Please try again.");
-      } finally {
         setUploadingBanner(false);
         setUploadingPoster(false);
       }

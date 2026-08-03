@@ -117,7 +117,9 @@ app.post("/api/upload", (req, res) => {
     fs.writeFileSync(filePath, buffer);
 
     const downloadUrl = `/uploads/${fileName}`;
-    res.json({ url: downloadUrl });
+    // Store self-contained data URL so image persists reliably in db.json across dev server restarts
+    const returnUrl = (typeof data === "string" && data.startsWith("data:")) ? data : downloadUrl;
+    res.json({ url: returnUrl, fileUrl: downloadUrl });
   } catch (err: any) {
     console.error("Upload error:", err);
     res.status(500).json({ error: "Failed to save file on server" });
@@ -2353,7 +2355,7 @@ app.post("/api/clubs", async (req, res) => {
 
   const db = getDb();
   const user = db.users.find(u => u.id === userId);
-  if (!user || user.role !== "club_admin") {
+  if (!user || (user.role !== "club_admin" && user.role !== "super_admin")) {
     return res.status(403).json({ error: "Only admins can manage clubs" });
   }
 
@@ -2402,7 +2404,7 @@ app.put("/api/clubs/:id", async (req, res) => {
 
   const db = getDb();
   const user = db.users.find(u => u.id === userId);
-  if (!user || user.role !== "club_admin") {
+  if (!user || (user.role !== "club_admin" && user.role !== "super_admin")) {
     return res.status(403).json({ error: "Only admins can manage clubs" });
   }
 
@@ -2415,11 +2417,11 @@ app.put("/api/clubs/:id", async (req, res) => {
     studentCoordinator, department, email, phone, instagram, linkedin, website, status
   } = req.body;
 
-  if (name) club.name = name;
-  if (description) club.description = description;
-  if (logo) club.logo = logo;
-  if (banner) club.banner = banner;
-  if (category) club.category = category;
+  if (name !== undefined) club.name = name;
+  if (description !== undefined) club.description = description;
+  if (logo !== undefined) club.logo = logo;
+  if (banner !== undefined) club.banner = banner;
+  if (category !== undefined) club.category = category;
   if (facultyCoordinator !== undefined) club.facultyCoordinator = facultyCoordinator;
   if (studentCoordinator !== undefined) club.studentCoordinator = studentCoordinator;
   if (department !== undefined) club.department = department;
@@ -2444,7 +2446,7 @@ app.delete("/api/clubs/:id", async (req, res) => {
 
   const db = getDb();
   const user = db.users.find(u => u.id === userId);
-  if (!user || user.role !== "club_admin") {
+  if (!user || (user.role !== "club_admin" && user.role !== "super_admin")) {
     return res.status(403).json({ error: "Only admins can delete clubs" });
   }
 
