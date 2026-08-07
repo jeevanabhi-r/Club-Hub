@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
-import { X, Calendar as CalendarIcon, UploadCloud } from "lucide-react";
+import { X, Calendar as CalendarIcon, UploadCloud, Trash2 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { Club, Event } from "../types";
 import { useAuth } from "../context/AuthContext";
@@ -363,13 +363,25 @@ export default function CreateEventModal({ isOpen, onClose, onSuccess, eventToEd
             </div>
 
             {bannerUrl && (
-              <div className="h-32 w-full rounded-lg border border-zinc-800 overflow-hidden mt-2 relative bg-zinc-950 flex items-center justify-center">
+              <div className="h-32 w-full rounded-lg border border-zinc-800 overflow-hidden mt-2 relative bg-zinc-950 flex items-center justify-center group">
                 <img 
                   src={bannerUrl} 
                   alt="Banner Preview" 
                   onError={(e) => { e.currentTarget.style.display = 'none'; }}
                   className="w-full h-full object-cover relative z-10" 
                 />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setBannerUrl("");
+                    setSelectedFileName("No file chosen");
+                    toast.success("Cover banner image removed");
+                  }}
+                  className="absolute top-2 right-2 z-20 px-2.5 py-1 bg-rose-600/90 hover:bg-rose-600 text-white text-[10px] font-bold rounded shadow-lg transition-all flex items-center gap-1 cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Remove Cover
+                </button>
                 <div className="absolute inset-0 flex flex-col items-center justify-center p-3 text-center text-zinc-500 z-0 space-y-1">
                   <span className="text-xs font-semibold text-zinc-400">Previous cover link expired or empty</span>
                   <span className="text-[10px] text-zinc-600">Choose a file above or paste an image URL to update</span>

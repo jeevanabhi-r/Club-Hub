@@ -2687,8 +2687,8 @@ app.put("/api/events/:id", async (req, res) => {
   if (venue) event.venue = venue;
   if (date) event.date = date;
   if (time) event.time = time;
-  if (banner) event.banner = banner;
-  if (poster) event.poster = poster;
+  if (banner !== undefined) event.banner = banner;
+  if (poster !== undefined) event.poster = poster;
   if (maxParticipants) event.maxParticipants = parseInt(maxParticipants);
   if (deadline) event.deadline = deadline;
   if (status) event.status = status;
