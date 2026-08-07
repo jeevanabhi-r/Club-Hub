@@ -63,11 +63,12 @@ export function BrandLogo({ className = "", size = "md" }: BrandLogoProps) {
           className={imgClass}
           onError={(e) => {
             const img = e.target as HTMLImageElement;
-            const fallback = "/logo.png";
-            if (!img.src.endsWith(fallback)) {
-              img.src = fallback;
-            } else {
-              img.style.display = "none";
+            const primaryFallback = defaultLogo || "/logo.png";
+            const secondaryFallback = "/favicon.png";
+            if (img.src !== primaryFallback && !img.src.endsWith("/logo.png")) {
+              img.src = primaryFallback;
+            } else if (!img.src.endsWith("/favicon.png")) {
+              img.src = secondaryFallback;
             }
           }}
         />

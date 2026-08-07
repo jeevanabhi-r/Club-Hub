@@ -62,6 +62,14 @@ async function ensureDbSynced(force: boolean = false): Promise<void> {
       }
       
       if (cloudData) {
+        if (cloudData.settings?.logoUrl && typeof cloudData.settings.logoUrl === "string" && cloudData.settings.logoUrl.startsWith("/uploads/")) {
+          const relPath = cloudData.settings.logoUrl.replace("/uploads/", "");
+          const localFile = path.join(UPLOADS_DIR, relPath);
+          if (!fs.existsSync(localFile)) {
+            console.log(`[Logo Repair] Missing logo file ${localFile}, repairing logoUrl to /logo.png`);
+            cloudData.settings.logoUrl = "/logo.png";
+          }
+        }
         fs.writeFileSync(DB_FILE, JSON.stringify(cloudData, null, 2), "utf8");
         // Clear cachedDb to force re-parsing & healing
         cachedDb = null;
@@ -96,6 +104,13 @@ if (!fs.existsSync(UPLOADS_DIR)) {
 }
 app.use("/uploads", express.static(UPLOADS_DIR));
 app.use("/assets/uploads", express.static(UPLOADS_DIR));
+app.get("/uploads/:filename", (req, res) => {
+  const logoPath = path.join(process.cwd(), "public", "logo.png");
+  if (fs.existsSync(logoPath)) {
+    return res.sendFile(logoPath);
+  }
+  res.status(404).send("Not found");
+});
 app.use(express.static(path.join(process.cwd(), "public")));
 
 app.post("/api/upload", (req, res) => {
@@ -765,10 +780,9 @@ function getDb(): DatabaseSchema {
       }
     }
 
-    const cleaned = convertBase64ToFiles(parsed);
-    cachedDb = cleaned;
+    cachedDb = parsed;
     lastSyncTime = Date.now();
-    return cleaned as DatabaseSchema;
+    return parsed as DatabaseSchema;
   } catch (error) {
     console.warn("Failed to parse database file, resetting to defaults...", error);
     const data = initialDatabase();
