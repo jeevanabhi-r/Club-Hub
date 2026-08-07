@@ -117,7 +117,9 @@ app.post("/api/upload", (req, res) => {
     fs.writeFileSync(filePath, buffer);
 
     const downloadUrl = `/uploads/${fileName}`;
-    res.json({ url: downloadUrl, fileUrl: downloadUrl });
+    // Store persistent base64 data URL in database so image persists reliably in Firestore & across container restarts
+    const returnUrl = (typeof data === "string" && data.startsWith("data:")) ? data : downloadUrl;
+    res.json({ url: returnUrl, fileUrl: downloadUrl });
   } catch (err: any) {
     console.error("Upload error:", err);
     res.status(500).json({ error: "Failed to save file on server" });
@@ -839,24 +841,22 @@ function sanitizeForFirestore(obj: any): any {
 }
 
 async function saveDb(data: DatabaseSchema): Promise<void> {
-  // Convert any embedded base64 data URLs to disk files first to keep db.json small (< 100KB)
-  const cleanedData = convertBase64ToFiles(data);
-  cachedDb = cleanedData;
+  cachedDb = data;
   lastSyncTime = Date.now();
 
   try {
-    fs.writeFileSync(DB_FILE, JSON.stringify(cleanedData, null, 2), "utf8");
+    fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2), "utf8");
   } catch (err) {
     console.error("Local database file write failed:", err);
   }
   
   try {
     if (adminDb) {
-      await adminDb.collection("system_data").doc("database").set(sanitizeForFirestore(cleanedData));
+      await adminDb.collection("system_data").doc("database").set(sanitizeForFirestore(data));
       console.log("[Admin SDK] Firestore cloud backup succeeded!");
     } else if (firestoreDb) {
       const docRef = doc(firestoreDb, "system_data", "database");
-      await setDoc(docRef, sanitizeForFirestore(cleanedData));
+      await setDoc(docRef, sanitizeForFirestore(data));
       console.log("Firestore cloud backup succeeded!");
     }
   } catch (err: any) {

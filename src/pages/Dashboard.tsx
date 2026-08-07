@@ -225,19 +225,18 @@ export default function Dashboard({ searchQuery = "" }: DashboardProps) {
                 >
                   {/* Banner Image */}
                   <div className="relative h-44 w-full bg-zinc-950/40 overflow-hidden shrink-0 border-b border-zinc-900 flex items-center justify-center">
-                    {evt.banner ? (
+                    {evt.banner && (
                       <img 
                         src={evt.banner} 
                         alt={evt.title}
                         onError={(e) => { e.currentTarget.style.display = 'none'; }}
                         className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105 relative z-10"
                       />
-                    ) : (
-                      <div className="flex flex-col items-center justify-center text-zinc-600 space-y-1">
-                        <Calendar className="h-7 w-7 opacity-30 text-zinc-500" />
-                        <span className="text-[9px] font-bold tracking-wider uppercase opacity-30">No Event Banner</span>
-                      </div>
                     )}
+                    <div className="absolute inset-0 flex flex-col items-center justify-center text-zinc-600 space-y-1 z-0">
+                      <Calendar className="h-7 w-7 opacity-30 text-zinc-500" />
+                      <span className="text-[9px] font-bold tracking-wider uppercase opacity-30">No Event Banner</span>
+                    </div>
                     {(() => {
                       const isPast = evt.status === "Completed" || evt.status === "Cancelled" || isPastEvent(evt.date, evt.time);
                       return (
@@ -373,7 +372,7 @@ export default function Dashboard({ searchQuery = "" }: DashboardProps) {
 
                 <div className="space-y-4 text-xs text-zinc-300 overflow-y-auto pr-1">
                   <div className="relative w-full bg-zinc-950/90 rounded-xl border border-zinc-800 flex items-center justify-center overflow-hidden p-1 group min-h-[200px] max-h-[460px]">
-                    {selectedEventDetails.banner ? (
+                    {selectedEventDetails.banner && (
                       <>
                         <img 
                           src={selectedEventDetails.banner} 
@@ -392,12 +391,11 @@ export default function Dashboard({ searchQuery = "" }: DashboardProps) {
                           <span>Full Image</span>
                         </button>
                       </>
-                    ) : (
-                      <div className="flex flex-col items-center justify-center text-zinc-600 space-y-1 p-6">
-                        <Calendar className="h-7 w-7 opacity-30 text-zinc-500" />
-                        <span className="text-[9px] font-bold tracking-wider uppercase opacity-30">No Event Banner</span>
-                      </div>
                     )}
+                    <div className="absolute inset-0 flex flex-col items-center justify-center text-zinc-600 space-y-1 p-6 z-0">
+                      <Calendar className="h-7 w-7 opacity-30 text-zinc-500" />
+                      <span className="text-[9px] font-bold tracking-wider uppercase opacity-30">No Event Banner</span>
+                    </div>
                   </div>
                   <div>
                     <h4 className="font-bold text-sm text-white mb-1">

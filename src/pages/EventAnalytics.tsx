@@ -282,19 +282,18 @@ export default function EventAnalytics() {
               >
                 {/* Event Image Banner */}
                 <div className="relative h-44 w-full bg-zinc-950/40 border-b border-zinc-900 overflow-hidden shrink-0 flex items-center justify-center">
-                  {item.banner ? (
+                  {item.banner && (
                     <img 
                       src={item.banner} 
                       alt={item.title}
                       onError={(e) => { e.currentTarget.style.display = 'none'; }}
                       className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105 relative z-10"
                     />
-                  ) : (
-                    <div className="flex flex-col items-center justify-center text-zinc-600 space-y-1">
-                      <Calendar className="h-7 w-7 opacity-30 text-zinc-500" />
-                      <span className="text-[9px] font-bold tracking-wider uppercase opacity-30">No Event Banner</span>
-                    </div>
                   )}
+                  <div className="absolute inset-0 flex flex-col items-center justify-center text-zinc-600 space-y-1 z-0">
+                    <Calendar className="h-7 w-7 opacity-30 text-zinc-500" />
+                    <span className="text-[9px] font-bold tracking-wider uppercase opacity-30">No Event Banner</span>
+                  </div>
 
                   {/* Club Tag */}
                   <span className="absolute top-3 left-3 px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-wider bg-black/75 backdrop-blur border border-white/10 text-[#f26522] shadow-md">
@@ -386,7 +385,7 @@ export default function EventAnalytics() {
             <div className="space-y-4 text-xs overflow-y-auto pr-1">
               {/* Banner */}
               <div className="relative w-full bg-zinc-950/90 rounded-xl border border-zinc-800 flex items-center justify-center overflow-hidden p-1 group min-h-[200px] max-h-[460px]">
-                {selectedEvent.banner ? (
+                {selectedEvent.banner && (
                   <>
                     <img 
                       src={selectedEvent.banner} 
@@ -405,12 +404,11 @@ export default function EventAnalytics() {
                       <span>Full Image</span>
                     </button>
                   </>
-                ) : (
-                  <div className="flex flex-col items-center justify-center text-zinc-600 space-y-1 p-6">
-                    <Calendar className="h-7 w-7 opacity-30 text-zinc-500" />
-                    <span className="text-[9px] font-bold tracking-wider uppercase opacity-30">No Event Banner</span>
-                  </div>
                 )}
+                <div className="absolute inset-0 flex flex-col items-center justify-center text-zinc-600 space-y-1 p-6 z-0">
+                  <Calendar className="h-7 w-7 opacity-30 text-zinc-500" />
+                  <span className="text-[9px] font-bold tracking-wider uppercase opacity-30">No Event Banner</span>
+                </div>
               </div>
 
               <div>
