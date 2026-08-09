@@ -1,8 +1,10 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { initializeFirestore } from 'firebase/firestore';
+import { initializeFirestore, setLogLevel } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import defaultConfig from '../firebase-applet-config.json';
+
+setLogLevel('silent');
 
 declare global {
   interface ImportMetaEnv {

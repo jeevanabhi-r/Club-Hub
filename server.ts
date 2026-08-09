@@ -31,6 +31,74 @@ let cachedDb: any = null;
 let lastSyncTime = 0;
 let syncPromise: Promise<void> | null = null;
 
+// Helper to guarantee that event interaction counts never decrease under any circumstance
+function sanitizeAndPreserveInteractionCounts(data: any, sources: (any | undefined | null)[] = []): any {
+  if (!data || !Array.isArray(data.events)) return data;
+
+  const maxDetailsMap = new Map<string, number>();
+  const maxPhotosMap = new Map<string, number>();
+
+  const processDbObj = (dbObj?: any | null) => {
+    if (!dbObj || !Array.isArray(dbObj.events)) return;
+
+    const interactions = Array.isArray(dbObj.interactions) ? dbObj.interactions : [];
+    const detailsFromInteractions = new Map<string, number>();
+    const photosFromInteractions = new Map<string, number>();
+
+    for (const item of interactions) {
+      if (item && item.eventId) {
+        if (item.type === "view_details") {
+          detailsFromInteractions.set(item.eventId, (detailsFromInteractions.get(item.eventId) || 0) + 1);
+        } else if (item.type === "view_photos") {
+          photosFromInteractions.set(item.eventId, (photosFromInteractions.get(item.eventId) || 0) + 1);
+        }
+      }
+    }
+
+    for (const e of dbObj.events) {
+      if (!e || !e.id) continue;
+      const id = e.id;
+      const details = Math.max(
+        Number(e.viewDetailsCount) || 0,
+        detailsFromInteractions.get(id) || 0
+      );
+      const photos = Math.max(
+        Number(e.viewPhotosCount) || 0,
+        photosFromInteractions.get(id) || 0
+      );
+
+      if (!maxDetailsMap.has(id) || details >= maxDetailsMap.get(id)!) {
+        maxDetailsMap.set(id, details);
+      }
+      if (!maxPhotosMap.has(id) || photos >= maxPhotosMap.get(id)!) {
+        maxPhotosMap.set(id, photos);
+      }
+    }
+  };
+
+  // 1. Process target data first
+  processDbObj(data);
+
+  // 2. Process all reference sources (e.g. cachedDb, local disk db)
+  for (const src of sources) {
+    processDbObj(src);
+  }
+
+  // 3. Apply maximums back to data.events so counts NEVER decrease
+  data.events = data.events.map((e: any) => {
+    if (!e || !e.id) return e;
+    const details = maxDetailsMap.get(e.id) ?? (Number(e.viewDetailsCount) || 0);
+    const photos = maxPhotosMap.get(e.id) ?? (Number(e.viewPhotosCount) || 0);
+    return {
+      ...e,
+      viewDetailsCount: details,
+      viewPhotosCount: photos
+    };
+  });
+
+  return data;
+}
+
 async function ensureDbSynced(force: boolean = false): Promise<void> {
   const now = Date.now();
   if (cachedDb && !force && (now - lastSyncTime < 8000)) {
@@ -70,6 +138,18 @@ async function ensureDbSynced(force: boolean = false): Promise<void> {
             cloudData.settings.logoUrl = "/logo.png";
           }
         }
+
+        // Read local disk DB to preserve highest interaction counts
+        let localDiskDb: any = null;
+        try {
+          if (fs.existsSync(DB_FILE)) {
+            localDiskDb = JSON.parse(fs.readFileSync(DB_FILE, "utf8"));
+          }
+        } catch (e) {}
+
+        // Guarantee that cloud sync never overwrites or lowers interaction counts
+        sanitizeAndPreserveInteractionCounts(cloudData, [cachedDb, localDiskDb]);
+
         fs.writeFileSync(DB_FILE, JSON.stringify(cloudData, null, 2), "utf8");
         // Clear cachedDb to force re-parsing & healing
         cachedDb = null;
@@ -780,6 +860,9 @@ function getDb(): DatabaseSchema {
       }
     }
 
+    // Preserve maximum interaction counts across parsed and cachedDb
+    sanitizeAndPreserveInteractionCounts(parsed, [cachedDb]);
+
     cachedDb = parsed;
     lastSyncTime = Date.now();
     return parsed as DatabaseSchema;
@@ -855,6 +938,17 @@ function sanitizeForFirestore(obj: any): any {
 }
 
 async function saveDb(data: DatabaseSchema): Promise<void> {
+  // Read current local disk DB to preserve highest interaction counts
+  let localDiskDb: any = null;
+  try {
+    if (fs.existsSync(DB_FILE)) {
+      localDiskDb = JSON.parse(fs.readFileSync(DB_FILE, "utf8"));
+    }
+  } catch (e) {}
+
+  // Preserve maximum interaction counts across data, cachedDb, and localDiskDb
+  sanitizeAndPreserveInteractionCounts(data, [cachedDb, localDiskDb]);
+
   cachedDb = data;
   lastSyncTime = Date.now();
 
@@ -2009,55 +2103,54 @@ app.post("/api/events/:id/interaction", async (req, res) => {
     }
 
     const db = getDb();
-    const event = db.events.find(e => e.id === eventId);
-    if (!event) return res.status(404).json({ error: "Event not found" });
 
     if (!db.interactions) db.interactions = [];
 
-    // DUPLICATE PROTECTION:
-    // Track interactions per event, user, session token, and interaction type.
-    const sessionKey = `${eventId}_${userId}_${token}_${type}`;
-    const existing = db.interactions.find(
-      i => i.id === sessionKey || 
-           (i.eventId === eventId && i.userId === userId && (i.sessionId === token || i.id === sessionKey) && i.type === type)
-    );
-
-    let newlyRecorded = false;
-    if (!existing) {
-      const prevDetails = event.viewDetailsCount || 0;
-      const prevPhotos = event.viewPhotosCount || 0;
-
-      const newRecord = {
-        id: sessionKey,
-        eventId,
-        userId,
-        sessionId: token,
-        type,
-        timestamp: new Date().toISOString()
-      };
-
-      if (type === "view_details") {
-        event.viewDetailsCount = prevDetails + 1;
-      } else if (type === "view_photos") {
-        event.viewPhotosCount = prevPhotos + 1;
+    // Ensure we start from max recorded count before incrementing
+    let localDiskDb: any = null;
+    try {
+      if (fs.existsSync(DB_FILE)) {
+        localDiskDb = JSON.parse(fs.readFileSync(DB_FILE, "utf8"));
       }
-      db.interactions.push(newRecord);
+    } catch (e) {}
 
-      try {
-        await saveDb(db);
-        newlyRecorded = true;
-      } catch (saveErr: any) {
-        // Revert in-memory counter if save/Firebase operation fails
-        event.viewDetailsCount = prevDetails;
-        event.viewPhotosCount = prevPhotos;
-        db.interactions.pop();
-        console.error("Firebase/Database error recording interaction:", saveErr);
-        return res.status(500).json({ error: "Failed to save interaction to Firebase database" });
-      }
+    sanitizeAndPreserveInteractionCounts(db, [localDiskDb]);
+
+    const event = db.events.find(e => e.id === eventId);
+    if (!event) return res.status(404).json({ error: "Event not found" });
+
+    const prevDetails = Number(event.viewDetailsCount) || 0;
+    const prevPhotos = Number(event.viewPhotosCount) || 0;
+
+    const interactionRecord = {
+      id: `${eventId}_${userId}_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      eventId,
+      userId,
+      sessionId: token,
+      type,
+      timestamp: new Date().toISOString()
+    };
+
+    if (type === "view_details") {
+      event.viewDetailsCount = prevDetails + 1;
+    } else if (type === "view_photos") {
+      event.viewPhotosCount = prevPhotos + 1;
+    }
+    db.interactions.push(interactionRecord);
+
+    try {
+      await saveDb(db);
+    } catch (saveErr: any) {
+      // Revert in-memory counter if save fails
+      event.viewDetailsCount = prevDetails;
+      event.viewPhotosCount = prevPhotos;
+      db.interactions.pop();
+      console.error("Firebase/Database error recording interaction:", saveErr);
+      return res.status(500).json({ error: "Failed to save interaction to Firebase database" });
     }
 
-    const viewDetailsCount = event.viewDetailsCount || 0;
-    const viewPhotosCount = event.viewPhotosCount || 0;
+    const viewDetailsCount = Number(event.viewDetailsCount) || 0;
+    const viewPhotosCount = Number(event.viewPhotosCount) || 0;
     const totalInteractions = viewDetailsCount + viewPhotosCount;
 
     res.json({
@@ -2066,7 +2159,7 @@ app.post("/api/events/:id/interaction", async (req, res) => {
       viewDetailsCount,
       viewPhotosCount,
       totalInteractions,
-      newlyRecorded
+      newlyRecorded: true
     });
   } catch (err: any) {
     console.error("Interaction tracking error:", err);
