@@ -5,7 +5,7 @@ import axios from "axios";
 import { toast } from "react-hot-toast";
 import { Club, Event } from "../types";
 import { useAuth } from "../context/AuthContext";
-import { formatToDDMMYY } from "../utils/date";
+import { formatToDDMMYY, isPastEvent } from "../utils/date";
 import { canEditEvent } from "../utils/permissions";
 
 interface EventFormProps {
@@ -216,6 +216,12 @@ export default function EventForm({ mode }: EventFormProps) {
 
       const formattedDate = formatToDDMMYY(date);
       const formattedDeadline = deadline ? formatToDDMMYY(deadline) : formattedDate;
+      const isPast = isPastEvent(formattedDate, time);
+      const computedStatus = status === "Cancelled"
+        ? "Cancelled"
+        : isPast
+          ? "Completed"
+          : "Upcoming";
 
       const payload = {
         title,
@@ -232,7 +238,7 @@ export default function EventForm({ mode }: EventFormProps) {
         deadline: formattedDeadline,
         requirements,
         organizer: organizer || clubName,
-        status,
+        status: computedStatus,
         driveLink
       };
 

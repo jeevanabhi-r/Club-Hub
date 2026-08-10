@@ -100,7 +100,7 @@ export default function Events({ searchQuery, filter = "all" }: EventsProps) {
 
   useEffect(() => {
     fetchEvents();
-  }, [user]);
+  }, [user, filter]);
 
   // Handle Save Event Toggle (Bookmark)
   const handleToggleSave = async (eventId: string) => {
@@ -169,11 +169,13 @@ export default function Events({ searchQuery, filter = "all" }: EventsProps) {
                           evt.clubName === selectedClub ||
                           (evt.clubId && clubs.find(c => c.id === evt.clubId)?.name === selectedClub);
 
+      const isPast = evt.status === "Cancelled" || isPastEvent(evt.date, evt.time);
+
       let matchesFilter = true;
       if (filter === "upcoming" || (filter === "all" && statusFilter === "upcoming")) {
-        matchesFilter = (evt.status === "Upcoming" || !evt.status) && !isPastEvent(evt.date, evt.time);
+        matchesFilter = !isPast;
       } else if (filter === "past" || (filter === "all" && statusFilter === "past")) {
-        matchesFilter = evt.status === "Completed" || evt.status === "Cancelled" || isPastEvent(evt.date, evt.time);
+        matchesFilter = isPast;
       } else if (filter === "my-registrations") {
         matchesFilter = registrations.some(r => r.eventId === evt.id && r.studentId === user?.id);
       }
@@ -306,7 +308,7 @@ export default function Events({ searchQuery, filter = "all" }: EventsProps) {
             
             const canManage = canEditEvent(user, evt);
 
-            const isPast = evt.status === "Completed" || evt.status === "Cancelled" || filter === "past" || isPastEvent(evt.date, evt.time);
+            const isPast = evt.status === "Cancelled" || isPastEvent(evt.date, evt.time);
 
             return (
               <div 
@@ -444,7 +446,7 @@ export default function Events({ searchQuery, filter = "all" }: EventsProps) {
       {selectedEventDetails && (() => {
         const isReg = registrations.some(r => r.eventId === selectedEventDetails.id && r.studentId === user?.id);
         const isFull = selectedEventDetails.registeredCount >= selectedEventDetails.maxParticipants;
-        const isPast = selectedEventDetails.status === "Completed" || selectedEventDetails.status === "Cancelled" || filter === "past";
+        const isPast = selectedEventDetails.status === "Cancelled" || isPastEvent(selectedEventDetails.date, selectedEventDetails.time);
         
         const canManage = canEditEvent(user, selectedEventDetails);
 

@@ -150,7 +150,7 @@ export default function Dashboard({ searchQuery = "" }: DashboardProps) {
   }
 
   // Admin view filters
-  const upcomingEvents = events.filter(evt => (evt.status === "Upcoming" || !evt.status) && !isPastEvent(evt.date, evt.time));
+  const upcomingEvents = events.filter(evt => evt.status !== "Cancelled" && !isPastEvent(evt.date, evt.time));
   const filteredUpcoming = upcomingEvents
     .filter(evt => 
       evt.title.toLowerCase().includes(localSearch.toLowerCase()) ||
@@ -238,7 +238,7 @@ export default function Dashboard({ searchQuery = "" }: DashboardProps) {
                       <span className="text-[9px] font-bold tracking-wider uppercase opacity-30">No Event Banner</span>
                     </div>
                     {(() => {
-                      const isPast = evt.status === "Completed" || evt.status === "Cancelled" || isPastEvent(evt.date, evt.time);
+                      const isPast = evt.status === "Cancelled" || isPastEvent(evt.date, evt.time);
                       return (
                         <span className={`absolute top-3 right-3 px-2 py-0.5 rounded text-[9px] font-bold tracking-wider uppercase bg-black/60 backdrop-blur border border-white/10 ${
                           isPast ? "text-zinc-400" : "text-emerald-400"
@@ -354,7 +354,7 @@ export default function Dashboard({ searchQuery = "" }: DashboardProps) {
         {selectedEventDetails && (() => {
           const isReg = studentRegs.some(r => r.eventId === selectedEventDetails.id);
           const isFull = selectedEventDetails.registeredCount >= selectedEventDetails.maxParticipants;
-          const isPast = selectedEventDetails.status === "Completed" || selectedEventDetails.status === "Cancelled";
+          const isPast = selectedEventDetails.status === "Cancelled" || isPastEvent(selectedEventDetails.date, selectedEventDetails.time);
           return (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
               <div className="w-full max-w-lg max-h-[90vh] flex flex-col rounded-2xl border border-zinc-800 bg-[#121212] p-6 shadow-2xl animate-in fade-in zoom-in duration-200">

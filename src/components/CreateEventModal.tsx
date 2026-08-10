@@ -4,7 +4,7 @@ import { X, Calendar as CalendarIcon, UploadCloud, Trash2 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { Club, Event } from "../types";
 import { useAuth } from "../context/AuthContext";
-import { formatToDDMMYY } from "../utils/date";
+import { formatToDDMMYY, isPastEvent } from "../utils/date";
 import { canEditEvent } from "../utils/permissions";
 
 interface CreateEventModalProps {
@@ -185,6 +185,12 @@ export default function CreateEventModal({ isOpen, onClose, onSuccess, eventToEd
       const reqText = driveLink ? `Google Drive Resource: ${driveLink}` : "";
 
       const formattedDate = formatToDDMMYY(date);
+      const isPast = isPastEvent(formattedDate, time);
+      const computedStatus = (eventToEdit?.status === "Cancelled")
+        ? "Cancelled"
+        : isPast
+          ? "Completed"
+          : "Upcoming";
 
       const payload = {
         title,
@@ -200,7 +206,7 @@ export default function CreateEventModal({ isOpen, onClose, onSuccess, eventToEd
         deadline: eventToEdit ? eventToEdit.deadline : formattedDate,
         requirements: eventToEdit ? eventToEdit.requirements : reqText,
         organizer: clubName,
-        status: eventToEdit ? eventToEdit.status : "Upcoming",
+        status: computedStatus,
         driveLink
       };
 

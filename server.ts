@@ -2062,8 +2062,9 @@ app.get("/api/events", (req, res) => {
   
   // Clean past/completed statuses dynamically based on date comparison
   list = list.map(evt => {
-    if (evt.status === "Upcoming" && isPastDate(evt.date, evt.time)) {
-      return { ...evt, status: "Completed" };
+    if (evt.status !== "Cancelled") {
+      const computedStatus = isPastDate(evt.date, evt.time) ? "Completed" : "Upcoming";
+      return { ...evt, status: computedStatus };
     }
     return evt;
   });
@@ -2076,8 +2077,9 @@ app.get("/api/events/past", (req, res) => {
   const db = getDb();
   let list = db.events
     .map(evt => {
-      if (evt.status === "Upcoming" && isPastDate(evt.date, evt.time)) {
-        return { ...evt, status: "Completed" };
+      if (evt.status !== "Cancelled") {
+        const computedStatus = isPastDate(evt.date, evt.time) ? "Completed" : "Upcoming";
+        return { ...evt, status: computedStatus };
       }
       return evt;
     })
@@ -2456,8 +2458,8 @@ app.get("/api/dashboard/stats", (req, res) => {
   
   const stats = {
     totalEvents: db.events.length,
-    upcomingEvents: db.events.filter(e => (e.status === "Upcoming" || !e.status) && !isPastDate(e.date, e.time)).length,
-    pastEvents: db.events.filter(e => e.status === "Completed" || e.status === "Cancelled" || isPastDate(e.date, e.time)).length,
+    upcomingEvents: db.events.filter(e => e.status !== "Cancelled" && !isPastDate(e.date, e.time)).length,
+    pastEvents: db.events.filter(e => e.status === "Cancelled" || isPastDate(e.date, e.time)).length,
     students: db.users.filter(u => u.role === "student").length,
     totalStudentsAndAdmins: db.users.filter(u => u.role === "student" || u.role === "club_admin").length,
     clubs: db.clubs.filter(c => c.approved).length,
@@ -2810,6 +2812,11 @@ app.put("/api/events/:id", async (req, res) => {
   // Make sure hostingClubId is set
   if (!event.hostingClubId) {
     event.hostingClubId = event.clubId;
+  }
+
+  // Recalculate status dynamically based on updated event date/time
+  if (event.status !== "Cancelled") {
+    event.status = isPastDate(event.date, event.time) ? "Completed" : "Upcoming";
   }
 
   await saveDb(db);
