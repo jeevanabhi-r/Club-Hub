@@ -17,6 +17,7 @@ import {
 import { Club } from "../types";
 import { toast } from "react-hot-toast";
 import { ConfirmModal } from "../components/ConfirmModal";
+import { FormattedText } from "../components/FormattedText";
 
 export default function Clubs() {
   const { user } = useAuth();
@@ -165,9 +166,9 @@ export default function Clubs() {
                   <h3 className="font-display font-semibold text-slate-200 text-sm leading-snug">
                     {club.name}
                   </h3>
-                  <p className="text-xs text-slate-400 leading-relaxed mt-2 line-clamp-3">
-                    {club.description}
-                  </p>
+                  <div className="text-xs text-slate-400 leading-relaxed mt-2 line-clamp-3">
+                    <FormattedText text={club.description} />
+                  </div>
                 </div>
 
                 <div className="flex items-center justify-between border-t border-zinc-900 pt-4 mt-2 text-[10px] text-zinc-400">

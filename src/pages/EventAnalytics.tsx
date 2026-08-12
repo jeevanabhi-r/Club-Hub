@@ -22,6 +22,7 @@ import { EventCardSkeleton } from "../components/Skeletons";
 import CalendarDatePicker, { DateFilterValue, DEFAULT_ALL_FILTER } from "../components/CalendarDatePicker";
 import { toast } from "react-hot-toast";
 import ImageLightboxModal from "../components/ImageLightboxModal";
+import { FormattedText } from "../components/FormattedText";
 
 export default function EventAnalytics() {
   const { user } = useAuth();
@@ -416,9 +417,9 @@ export default function EventAnalytics() {
                 <h4 className="font-bold text-base text-white mt-0.5 mb-1">
                   {selectedEvent.title}
                 </h4>
-                <p className="text-zinc-400 leading-relaxed">
-                  {selectedEvent.description || "No detailed description available."}
-                </p>
+                <div className="text-zinc-400 text-xs leading-relaxed">
+                  <FormattedText text={selectedEvent.description || "No detailed description available."} />
+                </div>
               </div>
 
               {/* Quick Info Grid */}

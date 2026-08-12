@@ -14,6 +14,7 @@ import { Announcement } from "../types";
 import { toast } from "react-hot-toast";
 import { ConfirmModal } from "../components/ConfirmModal";
 import { formatToDDMMYY } from "../utils/date";
+import { FormattedText } from "../components/FormattedText";
 
 export default function Announcements() {
   const { user } = useAuth();
@@ -176,9 +177,9 @@ export default function Announcements() {
               <h3 className="font-display font-semibold text-slate-200 text-sm leading-snug mb-2">
                 {ann.title}
               </h3>
-              <p className="text-xs text-slate-400 leading-relaxed whitespace-pre-wrap">
-                {ann.content}
-              </p>
+              <div className="text-xs text-slate-400 leading-relaxed">
+                <FormattedText text={ann.content} />
+              </div>
             </div>
           ))}
         </div>

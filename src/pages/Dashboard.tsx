@@ -28,6 +28,7 @@ import { formatToDDMMYY, parseEventDate, isPastEvent } from "../utils/date";
 import { canEditEvent } from "../utils/permissions";
 import CreateEventModal from "../components/CreateEventModal";
 import { ConfirmModal } from "../components/ConfirmModal";
+import { FormattedText } from "../components/FormattedText";
 import ImageLightboxModal from "../components/ImageLightboxModal";
 
 interface DashboardProps {
@@ -260,9 +261,9 @@ export default function Dashboard({ searchQuery = "" }: DashboardProps) {
                       <h3 className="font-display font-bold text-white text-sm leading-snug">
                         {evt.title}
                       </h3>
-                      <p className="text-xs text-zinc-400 leading-relaxed line-clamp-2">
-                        {evt.description}
-                      </p>
+                      <div className="text-xs text-zinc-400 leading-relaxed line-clamp-2">
+                        <FormattedText text={evt.description} />
+                      </div>
                     </div>
 
                     {/* Metadata Indicators */}
@@ -401,9 +402,9 @@ export default function Dashboard({ searchQuery = "" }: DashboardProps) {
                     <h4 className="font-bold text-sm text-white mb-1">
                       {selectedEventDetails.title}
                     </h4>
-                    <p className="text-zinc-400 leading-relaxed">
-                      {selectedEventDetails.description}
-                    </p>
+                    <div className="text-zinc-400 text-xs leading-relaxed">
+                      <FormattedText text={selectedEventDetails.description} />
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-3 bg-zinc-900/40 p-3 rounded-lg border border-zinc-900">
@@ -420,9 +421,9 @@ export default function Dashboard({ searchQuery = "" }: DashboardProps) {
                   {selectedEventDetails.requirements && (
                     <div>
                       <span className="text-zinc-500 font-bold uppercase text-[9px]">Requirements</span>
-                      <p className="text-zinc-300 mt-1 bg-zinc-900/60 p-2.5 rounded border border-zinc-900">
-                        {selectedEventDetails.requirements}
-                      </p>
+                      <div className="text-zinc-300 text-xs mt-1 bg-zinc-900/60 p-2.5 rounded border border-zinc-900 leading-relaxed">
+                        <FormattedText text={selectedEventDetails.requirements} />
+                      </div>
                     </div>
                   )}
 

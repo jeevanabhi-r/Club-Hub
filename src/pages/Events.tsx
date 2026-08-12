@@ -23,6 +23,7 @@ import {
 import { Event, Registration } from "../types";
 import { EventCardSkeleton } from "../components/Skeletons";
 import { toast } from "react-hot-toast";
+import { FormattedText } from "../components/FormattedText";
 import { formatToDDMMYY, parseEventDate, isPastEvent, getEventEndTimestamp } from "../utils/date";
 import { canEditEvent, canDeleteEvent, isSuperAdmin } from "../utils/permissions";
 import CreateEventModal from "../components/CreateEventModal";
@@ -349,9 +350,9 @@ export default function Events({ searchQuery, filter = "all" }: EventsProps) {
                     <h3 className="font-display font-bold text-white text-sm leading-snug">
                       {evt.title}
                     </h3>
-                    <p className="text-xs text-zinc-400 leading-relaxed line-clamp-3">
-                      {evt.description}
-                    </p>
+                    <div className="text-xs text-zinc-400 leading-relaxed line-clamp-3">
+                      <FormattedText text={evt.description} />
+                    </div>
                   </div>
 
                   {/* Metadata Indicators */}
@@ -496,10 +497,19 @@ export default function Events({ searchQuery, filter = "all" }: EventsProps) {
                   <h4 className="font-bold text-sm text-white mb-1">
                     {selectedEventDetails.title}
                   </h4>
-                  <p className="text-zinc-400 leading-relaxed">
-                    {selectedEventDetails.description}
-                  </p>
+                  <div className="text-zinc-400 text-xs leading-relaxed">
+                    <FormattedText text={selectedEventDetails.description} />
+                  </div>
                 </div>
+
+                {selectedEventDetails.requirements && (
+                  <div>
+                    <span className="text-zinc-500 font-bold uppercase text-[9px]">Requirements & Notes</span>
+                    <div className="text-zinc-300 text-xs mt-1 bg-zinc-900/60 p-2.5 rounded border border-zinc-900 leading-relaxed">
+                      <FormattedText text={selectedEventDetails.requirements} />
+                    </div>
+                  </div>
+                )}
 
                 <div className="grid grid-cols-2 gap-3 bg-zinc-900/40 p-3 rounded-lg border border-zinc-900 text-xs">
                   <div>

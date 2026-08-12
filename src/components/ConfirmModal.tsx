@@ -1,6 +1,7 @@
 import React from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { AlertTriangle, X } from "lucide-react";
+import { FormattedText } from "./FormattedText";
 
 interface ConfirmModalProps {
   isOpen: boolean;
@@ -67,9 +68,9 @@ export function ConfirmModal({
               <h3 className="font-display font-bold text-white text-sm">
                 {title}
               </h3>
-              <p className="text-xs text-zinc-400 leading-relaxed">
-                {description}
-              </p>
+              <div className="text-xs text-zinc-400 leading-relaxed">
+                <FormattedText text={description} />
+              </div>
             </div>
           </div>
 
