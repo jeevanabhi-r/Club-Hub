@@ -89,7 +89,8 @@ export default function EventForm({ mode }: EventFormProps) {
             setClubId(found.clubId || "");
             setCategory(found.category || "Coding");
             setDescription(found.description || "");
-            setBanner(found.banner || "");
+            const currentBanner = found.banner || found.coverImage || found.bannerImage || found.image || found.poster || "";
+            setBanner(currentBanner);
             setPoster(found.poster || "");
             setVenue(found.venue || "");
             setDate(found.date ? formatToDDMMYY(found.date) : "");
@@ -126,7 +127,7 @@ export default function EventForm({ mode }: EventFormProps) {
         img.src = reader.result as string;
         img.onload = async () => {
           const canvas = document.createElement("canvas");
-          const maxWidth = 1200;
+          const maxWidth = 800;
           let width = img.width;
           let height = img.height;
           if (width > maxWidth) {
@@ -139,7 +140,7 @@ export default function EventForm({ mode }: EventFormProps) {
           let dataUrl = reader.result as string;
           if (ctx) {
             ctx.drawImage(img, 0, 0, width, height);
-            dataUrl = canvas.toDataURL("image/jpeg", 0.82);
+            dataUrl = canvas.toDataURL("image/jpeg", 0.72);
           }
 
           const res = await axios.post("/api/upload", {
@@ -148,20 +149,22 @@ export default function EventForm({ mode }: EventFormProps) {
             data: dataUrl
           });
 
-          if (type === "banner") {
-            setBanner(res.data.url || dataUrl);
-            toast.success("Event banner uploaded and saved!");
+          if (res.data && res.data.url) {
+            if (type === "banner") {
+              setBanner(res.data.url);
+              toast.success("Event banner uploaded and saved!");
+            } else {
+              setPoster(res.data.url);
+              toast.success("Event poster uploaded and saved!");
+            }
           } else {
-            setPoster(res.data.url || dataUrl);
-            toast.success("Event poster uploaded and saved!");
+            toast.error("Failed to upload image.");
           }
           setUploadingBanner(false);
           setUploadingPoster(false);
         };
         img.onerror = () => {
-          if (type === "banner") setBanner(reader.result as string);
-          else setPoster(reader.result as string);
-          toast.success("Image selected!");
+          toast.error("Could not process selected image. Please try another file.");
           setUploadingBanner(false);
           setUploadingPoster(false);
         };
@@ -170,6 +173,11 @@ export default function EventForm({ mode }: EventFormProps) {
         setUploadingBanner(false);
         setUploadingPoster(false);
       }
+    };
+    reader.onerror = () => {
+      toast.error("Failed to read image file");
+      setUploadingBanner(false);
+      setUploadingPoster(false);
     };
   };
 
@@ -199,6 +207,10 @@ export default function EventForm({ mode }: EventFormProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (uploadingBanner || uploadingPoster) {
+      toast.error("Please wait until image upload finishes");
+      return;
+    }
     let finalClubId = clubId;
     if (user && user.role === "club_admin") {
       finalClubId = user.clubId || user.assignedClubId || "";

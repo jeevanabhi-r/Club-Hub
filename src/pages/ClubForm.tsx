@@ -107,20 +107,22 @@ export default function ClubForm({ mode }: ClubFormProps) {
             data: dataUrl
           });
 
-          if (type === "logo") {
-            setLogo(res.data.url || dataUrl);
-            toast.success("Logo uploaded and saved!");
+          if (res.data && res.data.url) {
+            if (type === "logo") {
+              setLogo(res.data.url);
+              toast.success("Logo uploaded and saved!");
+            } else {
+              setBanner(res.data.url);
+              toast.success("Banner uploaded and saved!");
+            }
           } else {
-            setBanner(res.data.url || dataUrl);
-            toast.success("Banner uploaded and saved!");
+            toast.error("Failed to upload image.");
           }
           setUploadingLogo(false);
           setUploadingBanner(false);
         };
         img.onerror = () => {
-          if (type === "logo") setLogo(reader.result as string);
-          else setBanner(reader.result as string);
-          toast.success("Image selected!");
+          toast.error("Could not process selected image. Please try another file.");
           setUploadingLogo(false);
           setUploadingBanner(false);
         };
@@ -129,6 +131,11 @@ export default function ClubForm({ mode }: ClubFormProps) {
         setUploadingLogo(false);
         setUploadingBanner(false);
       }
+    };
+    reader.onerror = () => {
+      toast.error("Failed to read image file");
+      setUploadingLogo(false);
+      setUploadingBanner(false);
     };
   };
 

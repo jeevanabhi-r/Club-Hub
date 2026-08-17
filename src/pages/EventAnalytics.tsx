@@ -287,7 +287,15 @@ export default function EventAnalytics() {
                     <img 
                       src={item.banner} 
                       alt={item.title}
-                      onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                      onError={(e) => {
+                        const target = e.currentTarget;
+                        if (!target.dataset.retried) {
+                          target.dataset.retried = "1";
+                          setTimeout(() => { target.src = target.src; }, 500);
+                        } else {
+                          target.style.display = 'none';
+                        }
+                      }}
                       className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105 relative z-10"
                     />
                   )}
@@ -385,32 +393,37 @@ export default function EventAnalytics() {
             {/* Modal Body */}
             <div className="space-y-4 text-xs overflow-y-auto pr-1">
               {/* Banner */}
-              <div className="relative w-full bg-zinc-950/90 rounded-xl border border-zinc-800 flex items-center justify-center overflow-hidden p-1 group min-h-[200px] max-h-[460px]">
-                {selectedEvent.banner && (
-                  <>
-                    <img 
-                      src={selectedEvent.banner} 
-                      alt={selectedEvent.title}
-                      onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                      className="w-full max-h-[440px] object-contain relative z-10 rounded-lg cursor-zoom-in transition-transform group-hover:scale-[1.01]"
-                      onClick={() => setFullViewImage(selectedEvent.banner)}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setFullViewImage(selectedEvent.banner)}
-                      className="absolute top-3 right-3 z-20 px-2.5 py-1.5 rounded-lg bg-black/80 hover:bg-black text-white backdrop-blur-md opacity-90 group-hover:opacity-100 transition-opacity text-[11px] font-semibold flex items-center gap-1.5 border border-white/20 shadow-lg cursor-pointer"
-                      title="View Full Size Image"
-                    >
-                      <Maximize2 className="h-3.5 w-3.5 text-[#f26522]" />
-                      <span>Full Image</span>
-                    </button>
-                  </>
-                )}
-                <div className="absolute inset-0 flex flex-col items-center justify-center text-zinc-600 space-y-1 p-6 z-0">
-                  <Calendar className="h-7 w-7 opacity-30 text-zinc-500" />
-                  <span className="text-[9px] font-bold tracking-wider uppercase opacity-30">No Event Banner</span>
-                </div>
-              </div>
+              {(() => {
+                const modalBanner = selectedEvent.banner || selectedEvent.coverImage || selectedEvent.bannerImage || selectedEvent.image || selectedEvent.poster || "";
+                return (
+                  <div className="relative w-full bg-zinc-950/90 rounded-xl border border-zinc-800 flex items-center justify-center overflow-hidden p-1 group min-h-[200px] max-h-[460px]">
+                    {modalBanner ? (
+                      <>
+                        <img 
+                          src={modalBanner} 
+                          alt={selectedEvent.title}
+                          onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                          className="w-full max-h-[440px] object-contain relative z-10 rounded-lg cursor-zoom-in transition-transform group-hover:scale-[1.01]"
+                          onClick={() => setFullViewImage(modalBanner)}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setFullViewImage(modalBanner)}
+                          className="absolute top-3 right-3 z-20 px-2.5 py-1.5 rounded-lg bg-black/80 hover:bg-black text-white backdrop-blur-md opacity-90 group-hover:opacity-100 transition-opacity text-[11px] font-semibold flex items-center gap-1.5 border border-white/20 shadow-lg cursor-pointer"
+                          title="View Full Size Image"
+                        >
+                          <Maximize2 className="h-3.5 w-3.5 text-[#f26522]" />
+                          <span>Full Image</span>
+                        </button>
+                      </>
+                    ) : null}
+                    <div className="absolute inset-0 flex flex-col items-center justify-center text-zinc-600 space-y-1 p-6 z-0">
+                      <Calendar className="h-7 w-7 opacity-30 text-zinc-500" />
+                      <span className="text-[9px] font-bold tracking-wider uppercase opacity-30">No Event Banner</span>
+                    </div>
+                  </div>
+                );
+              })()}
 
               <div>
                 <span className="text-[#f26522] font-black uppercase text-[10px] tracking-wider">{selectedEvent.clubName}</span>

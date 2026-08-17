@@ -56,6 +56,9 @@ export interface Event {
   date: string;
   time: string;
   banner: string;
+  coverImage?: string;
+  bannerImage?: string;
+  image?: string;
   poster?: string;
   maxParticipants: number;
   deadline: string;
@@ -67,6 +70,8 @@ export interface Event {
   createdBy?: string;
   viewDetailsCount?: number;
   viewPhotosCount?: number;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface EventAnalyticsData {
@@ -76,6 +81,10 @@ export interface EventAnalyticsData {
   clubName: string;
   clubId: string;
   banner: string;
+  coverImage?: string;
+  bannerImage?: string;
+  image?: string;
+  poster?: string;
   date: string;
   time?: string;
   driveLink?: string;

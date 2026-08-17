@@ -62,9 +62,10 @@ export default function CreateEventModal({ isOpen, onClose, onSuccess, eventToEd
         setTitle(eventToEdit.title || "");
         setDescription(eventToEdit.description || "");
         setClubId(eventToEdit.clubId || "");
-        setBannerUrl(eventToEdit.banner || "");
+        const currentBanner = eventToEdit.banner || eventToEdit.coverImage || eventToEdit.bannerImage || eventToEdit.image || eventToEdit.poster || "";
+        setBannerUrl(currentBanner);
         setDriveLink(eventToEdit.driveLink || "");
-        setSelectedFileName(eventToEdit.banner ? "Current Banner" : "No file chosen");
+        setSelectedFileName(currentBanner ? "Current Banner" : "No file chosen");
         
         setDate(eventToEdit.date ? formatToDDMMYY(eventToEdit.date) : "");
         setTime(eventToEdit.time || "");
@@ -105,7 +106,7 @@ export default function CreateEventModal({ isOpen, onClose, onSuccess, eventToEd
             img.src = reader.result as string;
             img.onload = async () => {
               const canvas = document.createElement("canvas");
-              const maxWidth = 1200;
+              const maxWidth = 800;
               let width = img.width;
               let height = img.height;
               if (width > maxWidth) {
@@ -118,7 +119,7 @@ export default function CreateEventModal({ isOpen, onClose, onSuccess, eventToEd
               let dataUrl = reader.result as string;
               if (ctx) {
                 ctx.drawImage(img, 0, 0, width, height);
-                dataUrl = canvas.toDataURL("image/jpeg", 0.82);
+                dataUrl = canvas.toDataURL("image/jpeg", 0.72);
               }
 
               const res = await axios.post("/api/upload", {
@@ -126,19 +127,26 @@ export default function CreateEventModal({ isOpen, onClose, onSuccess, eventToEd
                 type: "image/jpeg",
                 data: dataUrl
               });
-              setBannerUrl(res.data.url || dataUrl);
-              toast.success("Cover image uploaded and saved!");
+              if (res.data && res.data.url) {
+                setBannerUrl(res.data.url);
+                toast.success("Cover image uploaded and saved!");
+              } else {
+                toast.error("Failed to upload cover image");
+              }
               setUploadingImage(false);
             };
             img.onerror = () => {
-              setBannerUrl(reader.result as string);
-              toast.success("Cover image selected!");
+              toast.error("Could not process selected image. Please try another file.");
               setUploadingImage(false);
             };
           } catch (err) {
             toast.error("Failed to upload cover image");
             setUploadingImage(false);
           }
+        };
+        reader.onerror = () => {
+          toast.error("Failed to read image file");
+          setUploadingImage(false);
         };
       } catch (err) {
         toast.error("Failed to upload cover image");
@@ -149,6 +157,10 @@ export default function CreateEventModal({ isOpen, onClose, onSuccess, eventToEd
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (uploadingImage) {
+      toast.error("Please wait until image upload finishes");
+      return;
+    }
     if (!title) {
       toast.error("Event title is required");
       return;
@@ -198,7 +210,7 @@ export default function CreateEventModal({ isOpen, onClose, onSuccess, eventToEd
         clubName,
         category: eventToEdit ? eventToEdit.category : "Coding",
         description,
-        banner: bannerUrl || "",
+        banner: bannerUrl || (eventToEdit ? eventToEdit.banner : "") || "",
         venue: eventToEdit ? eventToEdit.venue : "Seminar Hall 1",
         date: formattedDate,
         time: time,

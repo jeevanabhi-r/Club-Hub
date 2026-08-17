@@ -4,7 +4,7 @@ import fs from "fs";
 import nodemailer from "nodemailer";
 import * as XLSX from "xlsx";
 import { createServer as createViteServer } from "vite";
-import { initializeApp } from "firebase/app";
+import { initializeApp, getApps } from "firebase/app";
 import { getFirestore, initializeFirestore, doc, getDoc, setDoc, setLogLevel } from "firebase/firestore";
 import adminAny, { adminDb, adminApp } from "./firebase-admin-config";
 
@@ -25,6 +25,182 @@ function resolvePath(filename: string): string {
 export const app = express();
 const PORT = 3000;
 const DB_FILE = process.env.VERCEL ? "/tmp/db.json" : resolvePath("db.json");
+const UPLOADS_DIR = process.env.VERCEL ? "/tmp/uploads" : path.join(process.cwd(), "uploads");
+if (!fs.existsSync(UPLOADS_DIR)) {
+  fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+}
+
+// In-memory image cache for fast responses & zero-redundancy reads
+const IMAGE_CACHE = new Map<string, { contentType: string; buffer: Buffer; base64Data?: string }>();
+
+let firestoreDb: any = null;
+
+try {
+  let firebaseConfig: any = null;
+  const configPath = resolvePath("firebase-applet-config.json");
+  if (fs.existsSync(configPath)) {
+    firebaseConfig = JSON.parse(fs.readFileSync(configPath, "utf8"));
+  } else {
+    firebaseConfig = {
+      apiKey: process.env.FIREBASE_API_KEY,
+      authDomain: process.env.FIREBASE_AUTH_DOMAIN,
+      projectId: process.env.FIREBASE_PROJECT_ID,
+      storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
+      messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
+      appId: process.env.FIREBASE_APP_ID,
+      firestoreDatabaseId: process.env.FIREBASE_DATABASE_ID || process.env.FIREBASE_FIRESTORE_DATABASE_ID
+    };
+  }
+
+  if (firebaseConfig && firebaseConfig.apiKey && firebaseConfig.projectId) {
+    let firebaseApp: any = null;
+    const existingApps = getApps();
+    const serverApp = existingApps.find(a => a.name === "server-client-fallback");
+    if (serverApp) {
+      firebaseApp = serverApp;
+    } else {
+      firebaseApp = initializeApp(firebaseConfig, "server-client-fallback");
+    }
+    firestoreDb = initializeFirestore(firebaseApp, {
+      experimentalForceLongPolling: true,
+    }, firebaseConfig.firestoreDatabaseId);
+    console.log("Firebase App & Firestore initialized successfully on server.");
+  } else {
+    console.warn("Firebase config is incomplete. Falling back to local-only mode.");
+  }
+} catch (err) {
+  console.error("Firebase App initialization failed on server:", err);
+}
+
+// Helper to permanently save images to Firestore cloud storage
+async function saveImageToFirestore(imgId: string, mimeType: string, base64Data: string, originalName?: string): Promise<string> {
+  const cleanId = imgId.replace(/^img_/, "").replace(/\.(jpeg|jpg|png|webp|gif)$/i, "");
+  const docId = `img_${cleanId}`;
+  const buffer = Buffer.from(base64Data, "base64");
+  const contentType = mimeType || "image/jpeg";
+
+  // Cache in memory
+  IMAGE_CACHE.set(cleanId, { contentType, buffer, base64Data });
+  IMAGE_CACHE.set(docId, { contentType, buffer, base64Data });
+
+  // Save to Firestore
+  if (adminDb) {
+    try {
+      await adminDb.collection("system_data").doc(docId).set({
+        id: cleanId,
+        docId,
+        contentType,
+        data: base64Data,
+        size: buffer.length,
+        originalName: originalName || "image.jpg",
+        createdAt: new Date().toISOString()
+      });
+      console.log(`[Admin SDK] Image ${docId} persisted to Firestore cloud!`);
+    } catch (err: any) {
+      console.warn(`[Admin SDK] Failed to save image ${docId} to Firestore:`, err.message || err);
+    }
+  } else if (firestoreDb) {
+    try {
+      const docRef = doc(firestoreDb, "system_data", docId);
+      await setDoc(docRef, {
+        id: cleanId,
+        docId,
+        contentType,
+        data: base64Data,
+        size: buffer.length,
+        originalName: originalName || "image.jpg",
+        createdAt: new Date().toISOString()
+      });
+      console.log(`[Firestore SDK] Image ${docId} persisted to Firestore cloud!`);
+    } catch (err: any) {
+      console.warn(`[Firestore SDK] Failed to save image ${docId} to Firestore:`, err.message || err);
+    }
+  }
+
+  // Also write to local disk uploads as fallback
+  try {
+    const ext = contentType.split("/")[1] || "jpeg";
+    fs.writeFileSync(path.join(UPLOADS_DIR, `${cleanId}.${ext}`), buffer);
+    fs.writeFileSync(path.join(UPLOADS_DIR, cleanId), buffer);
+  } catch (e) {}
+
+  return `/api/images/${cleanId}`;
+}
+
+// Helper to retrieve images from memory cache or Firestore cloud
+async function getImageFromFirestore(id: string): Promise<{ contentType: string; buffer: Buffer } | null> {
+  const cleanId = id.replace(/^img_/, "").replace(/\.(jpeg|jpg|png|webp|gif)$/i, "");
+  const docId = `img_${cleanId}`;
+
+  // Check cache first
+  if (IMAGE_CACHE.has(cleanId)) {
+    return IMAGE_CACHE.get(cleanId)!;
+  }
+  if (IMAGE_CACHE.has(docId)) {
+    return IMAGE_CACHE.get(docId)!;
+  }
+
+  // Fetch from Firestore Admin SDK if available
+  if (adminDb) {
+    try {
+      const docSnap = await adminDb.collection("system_data").doc(docId).get();
+      if (docSnap.exists) {
+        const data = docSnap.data();
+        if (data && data.data) {
+          const contentType = data.contentType || "image/jpeg";
+          const buffer = Buffer.from(data.data, "base64");
+          IMAGE_CACHE.set(cleanId, { contentType, buffer, base64Data: data.data });
+          return { contentType, buffer };
+        }
+      }
+    } catch (e) {
+      console.warn(`[Admin SDK] Error fetching image ${docId}:`, e);
+    }
+  }
+
+  // Fetch from Firestore Client SDK
+  if (firestoreDb) {
+    try {
+      const docRef = doc(firestoreDb, "system_data", docId);
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (data && data.data) {
+          const contentType = data.contentType || "image/jpeg";
+          const buffer = Buffer.from(data.data, "base64");
+          IMAGE_CACHE.set(cleanId, { contentType, buffer, base64Data: data.data });
+          return { contentType, buffer };
+        }
+      }
+    } catch (e) {
+      console.warn(`[Firestore SDK] Error fetching image ${docId}:`, e);
+    }
+  }
+
+  // Fallback to local uploads directory if present
+  try {
+    const possibleFiles = [
+      path.join(UPLOADS_DIR, id),
+      path.join(UPLOADS_DIR, cleanId),
+      path.join(UPLOADS_DIR, `${cleanId}.jpeg`),
+      path.join(UPLOADS_DIR, `${cleanId}.jpg`),
+      path.join(UPLOADS_DIR, `${cleanId}.png`),
+      path.join(UPLOADS_DIR, `${cleanId}.webp`),
+    ];
+    for (const f of possibleFiles) {
+      if (fs.existsSync(f) && fs.statSync(f).isFile()) {
+        const buffer = fs.readFileSync(f);
+        const ext = path.extname(f).toLowerCase().replace(".", "") || "jpeg";
+        const contentType = ext === "png" ? "image/png" : ext === "webp" ? "image/webp" : "image/jpeg";
+        // Also save to Firestore now so it is backed up permanently!
+        saveImageToFirestore(cleanId, contentType, buffer.toString("base64")).catch(() => {});
+        return { contentType, buffer };
+      }
+    }
+  } catch (e) {}
+
+  return null;
+}
 
 // Define state variables for db caching and synchronization
 let cachedDb: any = null;
@@ -99,6 +275,110 @@ function sanitizeAndPreserveInteractionCounts(data: any, sources: (any | undefin
   return data;
 }
 
+function preserveImagesAndEvents(targetData: any, sources: any[]) {
+  if (!targetData || typeof targetData !== "object") return;
+  if (!Array.isArray(targetData.events)) targetData.events = [];
+
+  for (const src of sources) {
+    if (!src || typeof src !== "object") continue;
+
+    // 1. Preserve event updates (title, description, date, time, banner, etc.)
+    if (Array.isArray(src.events)) {
+      for (const srcEvt of src.events) {
+        if (!srcEvt || !srcEvt.id) continue;
+        const targetEvt = targetData.events.find((e: any) => e && e.id === srcEvt.id);
+        if (targetEvt) {
+          // Compare updatedAt or timestamps if available
+          const srcUpdated = srcEvt.updatedAt ? new Date(srcEvt.updatedAt).getTime() : 0;
+          const targetUpdated = targetEvt.updatedAt ? new Date(targetEvt.updatedAt).getTime() : 0;
+
+          if (srcUpdated >= targetUpdated) {
+            // Local/source is newer or equal: preserve non-empty edits
+            if (srcEvt.title && srcEvt.title.trim() !== "") {
+              targetEvt.title = srcEvt.title;
+            }
+            if (srcEvt.description && srcEvt.description.trim() !== "" && srcEvt.description.trim().toUpperCase() !== "NA") {
+              targetEvt.description = srcEvt.description;
+            } else if ((!targetEvt.description || targetEvt.description.trim().toUpperCase() === "NA") && srcEvt.description) {
+              targetEvt.description = srcEvt.description;
+            }
+            if (srcEvt.date) targetEvt.date = srcEvt.date;
+            if (srcEvt.time) targetEvt.time = srcEvt.time;
+            if (srcEvt.venue) targetEvt.venue = srcEvt.venue;
+            if (srcEvt.category) targetEvt.category = srcEvt.category;
+            if (srcEvt.driveLink !== undefined) targetEvt.driveLink = srcEvt.driveLink;
+            if (srcEvt.requirements !== undefined) targetEvt.requirements = srcEvt.requirements;
+            if (srcEvt.maxParticipants) targetEvt.maxParticipants = srcEvt.maxParticipants;
+            if (srcEvt.deadline) targetEvt.deadline = srcEvt.deadline;
+            if (srcEvt.status) targetEvt.status = srcEvt.status;
+            if (srcEvt.updatedAt) targetEvt.updatedAt = srcEvt.updatedAt;
+          }
+
+          // Always preserve banners and posters if target is missing them or if source has valid banner
+          const srcBanner = srcEvt.banner || srcEvt.coverImage || srcEvt.bannerImage || srcEvt.image || srcEvt.poster;
+          const targetBanner = targetEvt.banner || targetEvt.coverImage || targetEvt.bannerImage || targetEvt.image || targetEvt.poster;
+          const preservedBanner = (targetBanner && targetBanner.trim() !== "") ? targetBanner.trim() : (srcBanner && srcBanner.trim() !== "") ? srcBanner.trim() : "";
+          if (preservedBanner) {
+            targetEvt.banner = preservedBanner;
+            targetEvt.coverImage = preservedBanner;
+            targetEvt.bannerImage = preservedBanner;
+            targetEvt.image = preservedBanner;
+          }
+          if ((!targetEvt.poster || targetEvt.poster.trim() === "") && srcEvt.poster && srcEvt.poster.trim() !== "") {
+            targetEvt.poster = srcEvt.poster;
+          }
+        } else {
+          // If event exists locally but not in targetData, preserve it
+          targetData.events.push(srcEvt);
+        }
+      }
+    }
+
+    // 2. Preserve club banners, logos, and details
+    if (Array.isArray(src.clubs) && Array.isArray(targetData.clubs)) {
+      for (const srcClub of src.clubs) {
+        if (!srcClub || !srcClub.id) continue;
+        const targetClub = targetData.clubs.find((c: any) => c && c.id === srcClub.id);
+        if (targetClub) {
+          if ((!targetClub.banner || targetClub.banner.trim() === "") && srcClub.banner && srcClub.banner.trim() !== "") {
+            targetClub.banner = srcClub.banner;
+          }
+          if ((!targetClub.logo || targetClub.logo.trim() === "") && srcClub.logo && srcClub.logo.trim() !== "") {
+            targetClub.logo = srcClub.logo;
+          }
+          if (srcClub.updatedAt) {
+            const srcClubUp = new Date(srcClub.updatedAt).getTime();
+            const targetClubUp = targetClub.updatedAt ? new Date(targetClub.updatedAt).getTime() : 0;
+            if (srcClubUp >= targetClubUp) {
+              Object.assign(targetClub, srcClub);
+            }
+          }
+        } else {
+          targetData.clubs.push(srcClub);
+        }
+      }
+    }
+
+    // 3. Preserve registrations
+    if (Array.isArray(src.registrations) && Array.isArray(targetData.registrations)) {
+      for (const reg of src.registrations) {
+        if (reg && reg.id && !targetData.registrations.some((r: any) => r.id === reg.id)) {
+          targetData.registrations.push(reg);
+        }
+      }
+    }
+
+    // 4. Preserve announcements
+    if (Array.isArray(src.announcements) && Array.isArray(targetData.announcements)) {
+      for (const ann of src.announcements) {
+        if (ann && ann.id && !targetData.announcements.some((a: any) => a.id === ann.id)) {
+          targetData.announcements.push(ann);
+        }
+      }
+    }
+  }
+}
+
 async function ensureDbSynced(force: boolean = false): Promise<void> {
   const now = Date.now();
   if (cachedDb && !force && (now - lastSyncTime < 8000)) {
@@ -139,7 +419,7 @@ async function ensureDbSynced(force: boolean = false): Promise<void> {
           }
         }
 
-        // Read local disk DB to preserve highest interaction counts
+        // Read local disk DB to preserve highest interaction counts & non-empty images
         let localDiskDb: any = null;
         try {
           if (fs.existsSync(DB_FILE)) {
@@ -147,7 +427,8 @@ async function ensureDbSynced(force: boolean = false): Promise<void> {
           }
         } catch (e) {}
 
-        // Guarantee that cloud sync never overwrites or lowers interaction counts
+        // Guarantee that cloud sync never overwrites/lowers interaction counts or removes image banners
+        preserveImagesAndEvents(cloudData, [cachedDb, localDiskDb]);
         sanitizeAndPreserveInteractionCounts(cloudData, [cachedDb, localDiskDb]);
 
         fs.writeFileSync(DB_FILE, JSON.stringify(cloudData, null, 2), "utf8");
@@ -178,46 +459,68 @@ app.use(async (req, res, next) => {
   next();
 });
 
-const UPLOADS_DIR = process.env.VERCEL ? "/tmp/uploads" : path.join(process.cwd(), "uploads");
-if (!fs.existsSync(UPLOADS_DIR)) {
-  fs.mkdirSync(UPLOADS_DIR, { recursive: true });
-}
 app.use("/uploads", express.static(UPLOADS_DIR));
 app.use("/assets/uploads", express.static(UPLOADS_DIR));
-app.get("/uploads/:filename", (req, res) => {
-  const logoPath = path.join(process.cwd(), "public", "logo.png");
-  if (fs.existsSync(logoPath)) {
-    return res.sendFile(logoPath);
-  }
-  res.status(404).send("Not found");
-});
 app.use(express.static(path.join(process.cwd(), "public")));
 
-app.post("/api/upload", (req, res) => {
+// Endpoint to permanently serve images from Firestore cloud or memory cache
+app.get("/api/images/:id", async (req, res) => {
+  const { id } = req.params;
+  if (!id) return res.status(404).send("Not found");
+
+  const img = await getImageFromFirestore(id);
+  if (!img) {
+    return res.status(404).send("Image not found");
+  }
+
+  res.setHeader("Content-Type", img.contentType);
+  res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+  res.send(img.buffer);
+});
+
+// Backward compatible endpoint for /uploads/:filename
+app.get("/uploads/:filename", async (req, res) => {
+  const { filename } = req.params;
+  if (!filename) return res.status(404).send("Not found");
+
+  const localPath = path.join(UPLOADS_DIR, filename);
+  if (fs.existsSync(localPath) && fs.statSync(localPath).isFile()) {
+    return res.sendFile(localPath);
+  }
+
+  const img = await getImageFromFirestore(filename);
+  if (img) {
+    res.setHeader("Content-Type", img.contentType);
+    res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+    return res.send(img.buffer);
+  }
+
+  if (filename.toLowerCase().includes("logo")) {
+    const logoPath = path.join(process.cwd(), "public", "logo.png");
+    if (fs.existsSync(logoPath)) {
+      return res.sendFile(logoPath);
+    }
+  }
+
+  res.status(404).send("Not found");
+});
+
+app.post("/api/upload", async (req, res) => {
   const { name, type, data } = req.body;
   if (!data) return res.status(400).json({ error: "No data provided" });
 
   try {
     const base64Data = data.includes("base64,") ? data.split("base64,")[1] : data;
-    const buffer = Buffer.from(base64Data, "base64");
-    const fileExtension = type ? (type.split("/")[1] || "png").replace(/[^a-zA-Z0-9]/g, "") : "png";
-    const fileName = `upload_${Date.now()}_${Math.floor(Math.random() * 1000)}.${fileExtension}`;
-    const uploadDir = process.env.VERCEL ? "/tmp/uploads" : path.join(process.cwd(), "uploads");
+    const fileExtension = type ? (type.split("/")[1] || "jpeg").replace(/[^a-zA-Z0-9]/g, "") : "jpeg";
+    const mimeType = type || (fileExtension === "png" ? "image/png" : "image/jpeg");
+    const imageId = `upload_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
 
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-
-    const filePath = path.join(uploadDir, fileName);
-    fs.writeFileSync(filePath, buffer);
-
-    const downloadUrl = `/uploads/${fileName}`;
-    // Store persistent base64 data URL in database so image persists reliably in Firestore & across container restarts
-    const returnUrl = (typeof data === "string" && data.startsWith("data:")) ? data : downloadUrl;
-    res.json({ url: returnUrl, fileUrl: downloadUrl });
+    const permanentUrl = await saveImageToFirestore(imageId, mimeType, base64Data, name);
+    console.log(`[Upload API] Image saved permanently to Firestore: ${permanentUrl}`);
+    res.json({ success: true, url: permanentUrl, id: imageId });
   } catch (err: any) {
     console.error("Upload error:", err);
-    res.status(500).json({ error: "Failed to save file on server" });
+    res.status(500).json({ error: "Failed to save file permanently" });
   }
 });
 
@@ -281,6 +584,9 @@ interface Event {
   date: string;
   time: string;
   banner: string;
+  coverImage?: string;
+  bannerImage?: string;
+  image?: string;
   poster?: string;
   maxParticipants: number;
   deadline: string;
@@ -293,6 +599,8 @@ interface Event {
   creatorEmail?: string;
   viewDetailsCount?: number;
   viewPhotosCount?: number;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 interface Registration {
@@ -592,39 +900,6 @@ const initialDatabase = (): DatabaseSchema => {
   };
 };
 
-let firestoreDb: any = null;
-
-try {
-  let firebaseConfig: any = null;
-  const configPath = resolvePath("firebase-applet-config.json");
-  if (fs.existsSync(configPath)) {
-    firebaseConfig = JSON.parse(fs.readFileSync(configPath, "utf8"));
-  } else {
-    // Fallback to environment variables if config file doesn't exist (e.g., standard production environments)
-    firebaseConfig = {
-      apiKey: process.env.FIREBASE_API_KEY,
-      authDomain: process.env.FIREBASE_AUTH_DOMAIN,
-      projectId: process.env.FIREBASE_PROJECT_ID,
-      storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
-      messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
-      appId: process.env.FIREBASE_APP_ID,
-      firestoreDatabaseId: process.env.FIREBASE_DATABASE_ID || process.env.FIREBASE_FIRESTORE_DATABASE_ID
-    };
-  }
-
-  if (firebaseConfig && firebaseConfig.apiKey && firebaseConfig.projectId) {
-    const firebaseApp = initializeApp(firebaseConfig, "server-client-fallback");
-    firestoreDb = initializeFirestore(firebaseApp, {
-      experimentalForceLongPolling: true,
-    }, firebaseConfig.firestoreDatabaseId);
-    console.log("Firebase App & Firestore initialized successfully on server.");
-  } else {
-    console.warn("Firebase config is incomplete. Falling back to local-only mode.");
-  }
-} catch (err) {
-  console.error("Firebase App initialization failed on server:", err);
-}
-
 function getDb(): DatabaseSchema {
   if (cachedDb) {
     return cachedDb;
@@ -708,6 +983,8 @@ function getDb(): DatabaseSchema {
         clubName = "Entrepreneur club";
       }
 
+      const banner = e.banner || e.coverImage || e.bannerImage || e.image || e.poster || "";
+
       if (e.viewDetailsCount === undefined) {
         e.viewDetailsCount = 0;
       }
@@ -715,7 +992,15 @@ function getDb(): DatabaseSchema {
         e.viewPhotosCount = 0;
       }
 
-      return { ...e, clubId, clubName };
+      return { 
+        ...e, 
+        clubId, 
+        clubName,
+        banner,
+        coverImage: banner,
+        bannerImage: banner,
+        image: banner
+      };
     });
 
     // Standardize all announcements to match the 6 requested clubs exactly
@@ -876,7 +1161,7 @@ function getDb(): DatabaseSchema {
   }
 }
 
-function convertBase64ToFiles(obj: any): any {
+async function extractAndPersistBase64Images(obj: any): Promise<any> {
   if (!obj) return obj;
   if (typeof obj === "string") {
     if (obj.startsWith("data:image/") || obj.startsWith("data:application/")) {
@@ -885,31 +1170,27 @@ function convertBase64ToFiles(obj: any): any {
         if (matches && matches[2]) {
           const mimeType = matches[1];
           const base64Data = matches[2];
-          const fileExtension = mimeType.split("/")[1] || "png";
-          const fileName = `upload_auto_${Date.now()}_${Math.floor(Math.random() * 10000)}.${fileExtension}`;
-          const uploadDir = process.env.VERCEL ? "/tmp/uploads" : path.join(process.cwd(), "uploads");
-          if (!fs.existsSync(uploadDir)) {
-            fs.mkdirSync(uploadDir, { recursive: true });
-          }
-          const filePath = path.join(uploadDir, fileName);
-          fs.writeFileSync(filePath, Buffer.from(base64Data, "base64"));
-          return `/uploads/${fileName}`;
+          const imageId = `upload_auto_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
+          const permanentUrl = await saveImageToFirestore(imageId, mimeType, base64Data);
+          return permanentUrl;
         }
       } catch (err) {
-        console.error("Failed to auto-convert base64 string to file:", err);
+        console.error("Failed to auto-persist base64 string to Firestore image:", err);
       }
     }
     return obj;
   }
   if (Array.isArray(obj)) {
-    return obj.map(convertBase64ToFiles);
+    for (let i = 0; i < obj.length; i++) {
+      obj[i] = await extractAndPersistBase64Images(obj[i]);
+    }
+    return obj;
   }
   if (typeof obj === "object") {
-    const res: any = {};
     for (const key of Object.keys(obj)) {
-      res[key] = convertBase64ToFiles(obj[key]);
+      obj[key] = await extractAndPersistBase64Images(obj[key]);
     }
-    return res;
+    return obj;
   }
   return obj;
 }
@@ -938,6 +1219,14 @@ function sanitizeForFirestore(obj: any): any {
 }
 
 async function saveDb(data: DatabaseSchema): Promise<void> {
+  // Convert any embedded base64 images into Firestore-backed image documents
+  await extractAndPersistBase64Images(data);
+
+  // Cap notifications array to latest 150 entries to keep document size light
+  if (Array.isArray(data.notifications) && data.notifications.length > 150) {
+    data.notifications = data.notifications.slice(-150);
+  }
+
   // Read current local disk DB to preserve highest interaction counts
   let localDiskDb: any = null;
   try {
@@ -972,11 +1261,35 @@ async function saveDb(data: DatabaseSchema): Promise<void> {
   }
 }
 
+// Initial image migration to Firestore on server start
+async function migrateImagesToFirestoreOnStartup() {
+  try {
+    if (!fs.existsSync(UPLOADS_DIR)) return;
+    const files = fs.readdirSync(UPLOADS_DIR);
+    for (const file of files) {
+      const filePath = path.join(UPLOADS_DIR, file);
+      if (!fs.statSync(filePath).isFile()) continue;
+      const cleanId = file.replace(/^img_/, "");
+      if (!IMAGE_CACHE.has(cleanId)) {
+        const buffer = fs.readFileSync(filePath);
+        const base64Data = buffer.toString("base64");
+        const ext = path.extname(file).toLowerCase().replace(".", "") || "jpeg";
+        const contentType = ext === "png" ? "image/png" : ext === "webp" ? "image/webp" : "image/jpeg";
+        await saveImageToFirestore(cleanId, contentType, base64Data, file);
+      }
+    }
+    console.log(`[Image Migration] Verified ${files.length} upload images in Firestore.`);
+  } catch (e) {
+    console.warn("[Image Migration] Startup migration note:", e);
+  }
+}
+
 // Ensure database is initialized
 getDb();
 
 async function syncDatabaseFromFirestore() {
   await ensureDbSynced(true);
+  await migrateImagesToFirestoreOnStartup();
 }
 
 syncDatabaseFromFirestore();
@@ -2060,13 +2373,19 @@ app.get("/api/events", (req, res) => {
   const db = getDb();
   let list = [...db.events];
   
-  // Clean past/completed statuses dynamically based on date comparison
+  // Clean past/completed statuses dynamically based on date comparison, ensuring banners are never removed
   list = list.map(evt => {
-    if (evt.status !== "Cancelled") {
-      const computedStatus = isPastDate(evt.date, evt.time) ? "Completed" : "Upcoming";
-      return { ...evt, status: computedStatus };
-    }
-    return evt;
+    const banner = evt.banner || (evt as any).coverImage || (evt as any).bannerImage || (evt as any).image || evt.poster || "";
+    const isPast = isPastDate(evt.date, evt.time);
+    const computedStatus = evt.status === "Cancelled" ? "Cancelled" : (isPast ? "Completed" : "Upcoming");
+    return {
+      ...evt,
+      banner,
+      coverImage: banner,
+      bannerImage: banner,
+      image: banner,
+      status: computedStatus
+    };
   });
 
   res.json(list);
@@ -2077,11 +2396,17 @@ app.get("/api/events/past", (req, res) => {
   const db = getDb();
   let list = db.events
     .map(evt => {
-      if (evt.status !== "Cancelled") {
-        const computedStatus = isPastDate(evt.date, evt.time) ? "Completed" : "Upcoming";
-        return { ...evt, status: computedStatus };
-      }
-      return evt;
+      const banner = evt.banner || (evt as any).coverImage || (evt as any).bannerImage || (evt as any).image || evt.poster || "";
+      const isPast = isPastDate(evt.date, evt.time);
+      const computedStatus = evt.status === "Cancelled" ? "Cancelled" : (isPast ? "Completed" : "Upcoming");
+      return {
+        ...evt,
+        banner,
+        coverImage: banner,
+        bannerImage: banner,
+        image: banner,
+        status: computedStatus
+      };
     })
     .filter(evt => evt.status === "Completed" || evt.status === "Cancelled" || isPastDate(evt.date, evt.time));
 
@@ -2298,6 +2623,7 @@ app.get("/api/analytics/events", (req, res) => {
       const viewDetailsCount = e.viewDetailsCount || 0;
       const viewPhotosCount = e.viewPhotosCount || 0;
       const totalInteractions = viewDetailsCount + viewPhotosCount;
+      const banner = e.banner || (e as any).coverImage || (e as any).bannerImage || (e as any).image || e.poster || "";
 
       return {
         id: e.id,
@@ -2305,7 +2631,10 @@ app.get("/api/analytics/events", (req, res) => {
         title: e.title,
         clubName: e.clubName,
         clubId: e.clubId,
-        banner: e.banner,
+        banner,
+        coverImage: banner,
+        bannerImage: banner,
+        image: banner,
         date: e.date,
         time: e.time,
         driveLink: e.driveLink || "",
@@ -2625,7 +2954,7 @@ app.post("/api/events", async (req, res) => {
     return res.status(403).json({ error: "Only admins can create events" });
   }
 
-  const { title, description, category, venue, date, time, banner, maxParticipants, deadline, driveLink, clubId: rClubId } = req.body;
+  const { title, description, category, venue, date, time, banner, coverImage, bannerImage, image, bannerUrl, poster, maxParticipants, deadline, driveLink, clubId: rClubId } = req.body;
   if (!title || !description || !category || !venue || !date || !time) {
     return res.status(400).json({ error: "Missing required fields" });
   }
@@ -2678,6 +3007,8 @@ app.post("/api/events", async (req, res) => {
   const clubId = club.id;
   const clubName = club.name;
 
+  const eventBanner = banner || coverImage || bannerImage || image || bannerUrl || poster || "";
+
   const newEvent: Event = {
     id: `evt_${Date.now()}`,
     title,
@@ -2689,13 +3020,19 @@ app.post("/api/events", async (req, res) => {
     venue,
     date,
     time,
-    banner: banner || "",
+    banner: eventBanner,
+    coverImage: eventBanner,
+    bannerImage: eventBanner,
+    image: eventBanner,
+    poster: poster || "",
     maxParticipants: parseInt(maxParticipants) || 100,
     deadline: deadline || date,
-    status: "Upcoming",
+    status: isPastDate(date, time) ? "Completed" : "Upcoming",
     registeredCount: 0,
     driveLink: driveLink || "",
-    createdBy: userId
+    createdBy: userId,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
   };
 
   db.events.push(newEvent);
@@ -2744,7 +3081,18 @@ app.get("/api/events/:id", (req, res) => {
     }
   }
 
-  res.json(event);
+  const banner = event.banner || (event as any).coverImage || (event as any).bannerImage || (event as any).image || event.poster || "";
+  const isPast = isPastDate(event.date, event.time);
+  const computedStatus = event.status === "Cancelled" ? "Cancelled" : (isPast ? "Completed" : "Upcoming");
+
+  res.json({
+    ...event,
+    banner,
+    coverImage: banner,
+    bannerImage: banner,
+    image: banner,
+    status: computedStatus
+  });
 });
 
 // Edit Event
@@ -2777,7 +3125,7 @@ app.put("/api/events/:id", async (req, res) => {
     }
   }
 
-  const { title, description, category, venue, date, time, banner, poster, maxParticipants, deadline, status, driveLink, clubId, clubName, requirements } = req.body;
+  const { title, description, category, venue, date, time, banner, coverImage, bannerImage, image, bannerUrl, poster, maxParticipants, deadline, status, driveLink, clubId, clubName, requirements } = req.body;
   
   // Extra safety: block Club Admin from moving the event to another club
   if (user.role === "club_admin") {
@@ -2796,8 +3144,16 @@ app.put("/api/events/:id", async (req, res) => {
   if (venue) event.venue = venue;
   if (date) event.date = date;
   if (time) event.time = time;
-  if (banner !== undefined) event.banner = banner;
-  if (poster !== undefined) event.poster = poster;
+  const newBanner = banner || coverImage || bannerImage || image || bannerUrl || poster;
+  if (newBanner && typeof newBanner === "string" && newBanner.trim() !== "") {
+    event.banner = newBanner.trim();
+    event.coverImage = newBanner.trim();
+    event.bannerImage = newBanner.trim();
+    event.image = newBanner.trim();
+  }
+  if (poster && typeof poster === "string" && poster.trim() !== "") {
+    event.poster = poster.trim();
+  }
   if (maxParticipants) event.maxParticipants = parseInt(maxParticipants);
   if (deadline) event.deadline = deadline;
   if (status) event.status = status;
@@ -2808,6 +3164,7 @@ app.put("/api/events/:id", async (req, res) => {
   }
   if (clubName) event.clubName = clubName;
   if (requirements !== undefined) event.requirements = requirements;
+  event.updatedAt = new Date().toISOString();
 
   // Make sure hostingClubId is set
   if (!event.hostingClubId) {

@@ -308,8 +308,8 @@ export default function Events({ searchQuery, filter = "all" }: EventsProps) {
             const isFull = evt.registeredCount >= evt.maxParticipants;
             
             const canManage = canEditEvent(user, evt);
-
             const isPast = evt.status === "Cancelled" || isPastEvent(evt.date, evt.time);
+            const eventBanner = evt.banner || evt.coverImage || evt.bannerImage || evt.image || evt.poster || "";
 
             return (
               <div 
@@ -318,14 +318,22 @@ export default function Events({ searchQuery, filter = "all" }: EventsProps) {
               >
                 {/* Banner */}
                 <div className="relative h-44 w-full bg-zinc-950/40 overflow-hidden shrink-0 border-b border-zinc-900 flex items-center justify-center">
-                  {evt.banner && (
+                  {eventBanner ? (
                     <img 
-                      src={evt.banner} 
+                      src={eventBanner} 
                       alt={evt.title}
-                      onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                      onError={(e) => {
+                        const target = e.currentTarget;
+                        if (!target.dataset.retried) {
+                          target.dataset.retried = "1";
+                          setTimeout(() => { target.src = target.src; }, 500);
+                        } else {
+                          target.style.display = 'none';
+                        }
+                      }}
                       className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105 relative z-10"
                     />
-                  )}
+                  ) : null}
                   <div className="absolute inset-0 flex flex-col items-center justify-center text-zinc-600 space-y-1 z-0">
                     <Calendar className="h-7 w-7 opacity-30 text-zinc-500" />
                     <span className="text-[9px] font-bold tracking-wider uppercase opacity-30">No Event Banner</span>
@@ -350,7 +358,7 @@ export default function Events({ searchQuery, filter = "all" }: EventsProps) {
                     <h3 className="font-display font-bold text-white text-sm leading-snug">
                       {evt.title}
                     </h3>
-                    <div className="text-xs text-zinc-400 leading-relaxed line-clamp-3">
+                    <div className="text-xs text-zinc-400 leading-relaxed line-clamp-5">
                       <FormattedText text={evt.description} />
                     </div>
                   </div>
@@ -467,32 +475,37 @@ export default function Events({ searchQuery, filter = "all" }: EventsProps) {
               </div>
 
               <div className="space-y-4 text-xs overflow-y-auto pr-1">
-                <div className="relative w-full bg-zinc-950/90 rounded-xl border border-zinc-800 flex items-center justify-center overflow-hidden p-1 group min-h-[200px] max-h-[460px]">
-                  {selectedEventDetails.banner && (
-                    <>
-                      <img 
-                        src={selectedEventDetails.banner} 
-                        alt={selectedEventDetails.title}
-                        onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                        className="w-full max-h-[440px] object-contain relative z-10 rounded-lg cursor-zoom-in transition-transform group-hover:scale-[1.01]"
-                        onClick={() => setFullViewImage(selectedEventDetails.banner)}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setFullViewImage(selectedEventDetails.banner)}
-                        className="absolute top-3 right-3 z-20 px-2.5 py-1.5 rounded-lg bg-black/80 hover:bg-black text-white backdrop-blur-md opacity-90 group-hover:opacity-100 transition-opacity text-[11px] font-semibold flex items-center gap-1.5 border border-white/20 shadow-lg cursor-pointer"
-                        title="View Full Size Image"
-                      >
-                        <Maximize2 className="h-3.5 w-3.5 text-[#f26522]" />
-                        <span>Full Image</span>
-                      </button>
-                    </>
-                  )}
-                  <div className="absolute inset-0 flex flex-col items-center justify-center text-zinc-600 space-y-1 p-6 z-0">
-                    <Calendar className="h-7 w-7 opacity-30 text-zinc-500" />
-                    <span className="text-[9px] font-bold tracking-wider uppercase opacity-30">No Event Banner</span>
-                  </div>
-                </div>
+                {(() => {
+                  const modalBanner = selectedEventDetails.banner || selectedEventDetails.coverImage || selectedEventDetails.bannerImage || selectedEventDetails.image || selectedEventDetails.poster || "";
+                  return (
+                    <div className="relative w-full bg-zinc-950/90 rounded-xl border border-zinc-800 flex items-center justify-center overflow-hidden p-1 group min-h-[200px] max-h-[460px]">
+                      {modalBanner ? (
+                        <>
+                          <img 
+                            src={modalBanner} 
+                            alt={selectedEventDetails.title}
+                            onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                            className="w-full max-h-[440px] object-contain relative z-10 rounded-lg cursor-zoom-in transition-transform group-hover:scale-[1.01]"
+                            onClick={() => setFullViewImage(modalBanner)}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setFullViewImage(modalBanner)}
+                            className="absolute top-3 right-3 z-20 px-2.5 py-1.5 rounded-lg bg-black/80 hover:bg-black text-white backdrop-blur-md opacity-90 group-hover:opacity-100 transition-opacity text-[11px] font-semibold flex items-center gap-1.5 border border-white/20 shadow-lg cursor-pointer"
+                            title="View Full Size Image"
+                          >
+                            <Maximize2 className="h-3.5 w-3.5 text-[#f26522]" />
+                            <span>Full Image</span>
+                          </button>
+                        </>
+                      ) : null}
+                      <div className="absolute inset-0 flex flex-col items-center justify-center text-zinc-600 space-y-1 p-6 z-0">
+                        <Calendar className="h-7 w-7 opacity-30 text-zinc-500" />
+                        <span className="text-[9px] font-bold tracking-wider uppercase opacity-30">No Event Banner</span>
+                      </div>
+                    </div>
+                  );
+                })()}
                 <div>
                   <h4 className="font-bold text-sm text-white mb-1">
                     {selectedEventDetails.title}
