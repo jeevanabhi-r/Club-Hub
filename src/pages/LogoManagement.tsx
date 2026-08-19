@@ -1,50 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useLogo } from "../context/LogoContext";
-import { db, storage, auth } from "../firebase";
-import { doc, setDoc, getDoc, updateDoc } from "firebase/firestore";
-import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from "firebase/storage";
-import { signInAnonymously } from "firebase/auth";
 import axios from "axios";
-
-enum OperationType {
-  CREATE = 'create',
-  UPDATE = 'update',
-  DELETE = 'delete',
-  LIST = 'list',
-  GET = 'get',
-  WRITE = 'write',
-}
-
-interface FirestoreErrorInfo {
-  error: string;
-  operationType: OperationType;
-  path: string | null;
-  authInfo: {
-    userId?: string | null;
-    email?: string | null;
-    emailVerified?: boolean | null;
-    isAnonymous?: boolean | null;
-    tenantId?: string | null;
-  }
-}
-
-function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
-  const errInfo: FirestoreErrorInfo = {
-    error: error instanceof Error ? error.message : String(error),
-    authInfo: {
-      userId: auth.currentUser?.uid,
-      email: auth.currentUser?.email,
-      emailVerified: auth.currentUser?.emailVerified,
-      isAnonymous: auth.currentUser?.isAnonymous,
-      tenantId: auth.currentUser?.tenantId,
-    },
-    operationType,
-    path
-  };
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
-}
 import { 
   UploadCloud, 
   Trash2, 
@@ -87,7 +44,7 @@ export default function LogoManagement() {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-6 bg-zinc-900/30 rounded-xl border border-zinc-900">
         <AlertCircle className="h-12 w-12 text-rose-500 mb-4 animate-bounce" />
-        <h3 className="text-lg font-bold text-white mb-2">Access Restriced</h3>
+        <h3 className="text-lg font-bold text-white mb-2">Access Restricted</h3>
         <p className="text-xs text-zinc-400 max-w-md">
           Only the Super Admin is authorized to upload, modify, or remove the website logo.
         </p>
@@ -95,17 +52,20 @@ export default function LogoManagement() {
     );
   }
 
-  // File Validation
+  // File Validation (Supports up to 5 MB as displayed in UI)
   const validateFile = (file: File): boolean => {
     const allowedTypes = ["image/png", "image/jpeg", "image/jpg", "image/svg+xml", "image/webp"];
-    if (!allowedTypes.includes(file.type)) {
+    const fileExt = file.name.split('.').pop()?.toLowerCase();
+    const allowedExts = ["png", "jpg", "jpeg", "svg", "webp"];
+
+    if (!allowedTypes.includes(file.type) && (!fileExt || !allowedExts.includes(fileExt))) {
       toast.error("Unsupported file format! Please upload PNG, JPG, JPEG, SVG, or WebP.");
       return false;
     }
     
-    const maxSize = 1024 * 1024; // 1 MB limit for firestore database storage
+    const maxSize = 5 * 1024 * 1024; // 5 MB limit
     if (file.size > maxSize) {
-      toast.error("Logo file size is too large! For direct database synchronization, please upload a logo under 1 MB.");
+      toast.error("Logo file size is too large! Maximum allowed size is 5 MB.");
       return false;
     }
 
@@ -120,7 +80,7 @@ export default function LogoManagement() {
         setLogoPreview(reader.result as string);
       };
       reader.readAsDataURL(file);
-      toast.success("Logo file selected successfully! Click 'Save Changes' to upload.");
+      toast.success("Logo file selected! Click 'Save Changes' to apply.");
     }
   };
 
@@ -165,10 +125,20 @@ export default function LogoManagement() {
     toast.success("Logo cleared from preview. Click 'Save Changes' to persist.");
   };
 
+  // Reset to default university logo
+  const handleResetToDefault = () => {
+    setSelectedFile(null);
+    setLogoPreview("/logo.svg");
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+    toast.success("Reset to default official logo. Click 'Save Changes' to apply.");
+  };
+
   // Cancel edits
   const handleCancel = () => {
     setSelectedFile(null);
-    setLogoPreview(currentLogoUrl);
+    setLogoPreview(currentLogoUrl || "/logo.svg");
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
@@ -176,17 +146,68 @@ export default function LogoManagement() {
     navigate("/dashboard");
   };
 
-  // Save changes and handle upload to Firebase Storage & Firestore settings collection
+  // Helper to read file and optimize with canvas
+  const processImageForUpload = (file: File): Promise<{ dataUrl: string; mimeType: string }> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = reject;
+      reader.onload = () => {
+        const rawResult = reader.result as string;
+        
+        // For SVG files, use raw data directly
+        if (file.type === "image/svg+xml" || file.name.toLowerCase().endsWith(".svg")) {
+          return resolve({ dataUrl: rawResult, mimeType: "image/svg+xml" });
+        }
+
+        // For raster images, optimize dimensions
+        const img = new Image();
+        img.onerror = () => resolve({ dataUrl: rawResult, mimeType: file.type || "image/png" });
+        img.onload = () => {
+          try {
+            const canvas = document.createElement("canvas");
+            const maxDimension = 1200;
+            let width = img.width;
+            let height = img.height;
+
+            if (width > maxDimension || height > maxDimension) {
+              if (width > height) {
+                height = Math.round((height * maxDimension) / width);
+                width = maxDimension;
+              } else {
+                width = Math.round((width * maxDimension) / height);
+                height = maxDimension;
+              }
+            }
+
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext("2d");
+            if (ctx) {
+              ctx.drawImage(img, 0, 0, width, height);
+              const outputMime = file.type === "image/png" ? "image/png" : "image/jpeg";
+              const optimizedDataUrl = canvas.toDataURL(outputMime, 0.90);
+              resolve({ dataUrl: optimizedDataUrl, mimeType: outputMime });
+            } else {
+              resolve({ dataUrl: rawResult, mimeType: file.type || "image/png" });
+            }
+          } catch (e) {
+            resolve({ dataUrl: rawResult, mimeType: file.type || "image/png" });
+          }
+        };
+        img.src = rawResult;
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  // Save changes and handle upload to persistent storage & settings
   const handleSaveChanges = async () => {
     setIsSaving(true);
     setUploadProgress(0);
 
     try {
-      let finalUrl = currentLogoUrl;
-
       // Case 1: Logo has been cleared/removed
       if (logoPreview === null) {
-        console.log("Removing website logo on server...");
         setUploadProgress(30);
         await axios.post("/api/settings", {
           logoUrl: null
@@ -194,7 +215,7 @@ export default function LogoManagement() {
         setUploadProgress(100);
         
         await refreshLogo();
-        toast.success("Website logo deleted successfully!");
+        toast.success("Website logo removed successfully!");
         setSelectedFile(null);
         setIsSaving(false);
         return;
@@ -203,41 +224,36 @@ export default function LogoManagement() {
       // Case 2: New file selected for upload
       if (selectedFile) {
         setIsUploading(true);
-        setUploadProgress(10);
+        setUploadProgress(20);
 
-        console.log("Starting conversion of:", selectedFile.name, "to base64 Data URL...");
-        
-        const reader = new FileReader();
-        const uploadPromise = new Promise<string>((resolve, reject) => {
-          reader.readAsDataURL(selectedFile);
-          reader.onload = () => {
-            setUploadProgress(60);
-            resolve(reader.result as string);
-          };
-          reader.onerror = (error) => {
-            reject(error);
-          };
+        // Process and optimize image
+        const { dataUrl, mimeType } = await processImageForUpload(selectedFile);
+        setUploadProgress(50);
+
+        // Upload through backend upload API for permanent storage
+        const uploadRes = await axios.post("/api/upload", {
+          name: selectedFile.name,
+          type: mimeType,
+          data: dataUrl
         });
 
-        finalUrl = await uploadPromise;
+        const permanentLogoUrl = uploadRes.data?.url || dataUrl;
         setUploadProgress(80);
-        console.log("Base64 conversion complete.");
-        
-        // Save to Firestore settings collection via server API
-        console.log("Saving base64 logo directly to server...");
+
+        // Save URL in website settings
         await axios.post("/api/settings", {
-          logoUrl: finalUrl
+          logoUrl: permanentLogoUrl
         });
 
         setUploadProgress(100);
         await refreshLogo();
-        toast.success("Website logo updated successfully!");
+        toast.success("Website branding logo updated successfully!");
         setSelectedFile(null);
         setIsUploading(false);
         setIsSaving(false);
       } else {
         // No changes to file, but user clicked save
-        toast("No new logo file was uploaded.", { icon: "ℹ️" });
+        toast("No changes to save.", { icon: "ℹ️" });
         setIsSaving(false);
       }
     } catch (err: any) {
@@ -260,6 +276,15 @@ export default function LogoManagement() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={handleResetToDefault}
+            disabled={isSaving}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-zinc-800 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900 transition-all cursor-pointer disabled:opacity-50"
+            title="Reset to official NIAT logo"
+          >
+            <RefreshCw className="h-3.5 w-3.5" />
+            Reset Default
+          </button>
           <button
             onClick={handleCancel}
             disabled={isSaving}

@@ -8,10 +8,11 @@ import defaultLogo from "../assets/logo.png";
 interface BrandLogoProps {
   className?: string;
   size?: "sm" | "md" | "lg" | "xl" | "sidebar" | "login";
+  showText?: boolean;
 }
 
-export function BrandLogo({ className = "", size = "md" }: BrandLogoProps) {
-  const { logoUrl, loading } = useLogo();
+export function BrandLogo({ className = "", size = "md", showText = true }: BrandLogoProps) {
+  const { logoUrl } = useLogo();
   const { user } = useAuth();
 
   // Typography text classes for "ClubHub"
@@ -26,13 +27,13 @@ export function BrandLogo({ className = "", size = "md" }: BrandLogoProps) {
 
   // Image size classes when positioned to the left of the text
   const imgClass = {
-    sm: "h-6 w-auto max-w-[56px] object-contain rounded",
-    md: "h-8 w-auto max-w-[72px] object-contain rounded-md",
-    lg: "h-10 w-auto max-w-[90px] object-contain rounded-md",
-    xl: "h-12 w-auto max-w-[110px] object-contain rounded-md",
-    sidebar: "h-8 w-auto max-w-[80px] object-contain rounded-md",
-    login: "h-12 w-auto max-w-[100px] object-contain rounded-lg"
-  }[size] || "h-8 w-auto max-w-[72px] object-contain rounded-md";
+    sm: "h-6 w-auto max-w-[120px] object-contain rounded shrink-0",
+    md: "h-8 w-auto max-w-[150px] object-contain rounded-md shrink-0",
+    lg: "h-10 w-auto max-w-[180px] object-contain rounded-md shrink-0",
+    xl: "h-12 w-auto max-w-[220px] object-contain rounded-md shrink-0",
+    sidebar: "h-8 w-auto max-w-[140px] object-contain rounded-md shrink-0",
+    login: "h-12 w-auto max-w-[200px] object-contain rounded-lg shrink-0"
+  }[size] || "h-8 w-auto max-w-[150px] object-contain rounded-md shrink-0";
 
   // Gap between logo and text
   const gapClass = {
@@ -44,38 +45,30 @@ export function BrandLogo({ className = "", size = "md" }: BrandLogoProps) {
     login: "gap-3"
   }[size] || "gap-2";
 
-  if (loading) {
-    return (
-      <div className={`animate-pulse select-none flex items-center justify-center ${className}`}>
-        <span className={`${textClass} text-zinc-600`}>ClubHub</span>
-      </div>
-    );
-  }
-
-  const finalLogoUrl = logoUrl || defaultLogo || "/logo.png";
+  const resolvedLogoUrl = logoUrl || defaultLogo || "/logo.png";
 
   const content = (
     <>
-      {finalLogoUrl && (
+      {resolvedLogoUrl && (
         <img
-          src={finalLogoUrl}
+          src={resolvedLogoUrl}
           alt="ClubHub Logo"
           className={imgClass}
           onError={(e) => {
             const img = e.target as HTMLImageElement;
-            const primaryFallback = defaultLogo || "/logo.png";
-            const secondaryFallback = "/favicon.png";
-            if (img.src !== primaryFallback && !img.src.endsWith("/logo.png")) {
-              img.src = primaryFallback;
-            } else if (!img.src.endsWith("/favicon.png")) {
-              img.src = secondaryFallback;
+            if (!img.src.includes("logo.png") && !img.src.includes("logo.svg")) {
+              img.src = defaultLogo || "/logo.png";
+            } else if (!img.src.includes("favicon.png")) {
+              img.src = "/favicon.png";
             }
           }}
         />
       )}
-      <span className={`${textClass} bg-gradient-to-r from-[#FF5500] via-[#FF8800] to-[#FFCC00] bg-clip-text text-transparent font-black font-display`}>
-        ClubHub
-      </span>
+      {showText && (
+        <span className={`${textClass} bg-gradient-to-r from-[#FF5500] via-[#FF8800] to-[#FFCC00] bg-clip-text text-transparent font-black font-display whitespace-nowrap`}>
+          ClubHub
+        </span>
+      )}
     </>
   );
 
@@ -83,7 +76,7 @@ export function BrandLogo({ className = "", size = "md" }: BrandLogoProps) {
     return (
       <Link 
         to="/dashboard" 
-        className={`select-none flex items-center justify-center ${gapClass} ${className} hover:opacity-90 transition-opacity cursor-pointer`}
+        className={`select-none inline-flex items-center justify-center ${gapClass} ${className} hover:opacity-90 transition-opacity cursor-pointer`}
       >
         {content}
       </Link>
@@ -91,7 +84,7 @@ export function BrandLogo({ className = "", size = "md" }: BrandLogoProps) {
   }
 
   return (
-    <div className={`select-none flex items-center justify-center ${gapClass} ${className}`}>
+    <div className={`select-none inline-flex items-center justify-center ${gapClass} ${className}`}>
       {content}
     </div>
   );

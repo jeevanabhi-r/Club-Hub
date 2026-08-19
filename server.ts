@@ -74,7 +74,7 @@ try {
 
 // Helper to permanently save images to Firestore cloud storage
 async function saveImageToFirestore(imgId: string, mimeType: string, base64Data: string, originalName?: string): Promise<string> {
-  const cleanId = imgId.replace(/^img_/, "").replace(/\.(jpeg|jpg|png|webp|gif)$/i, "");
+  const cleanId = imgId.replace(/^img_/, "").replace(/\.(jpeg|jpg|png|webp|gif|svg)$/i, "");
   const docId = `img_${cleanId}`;
   const buffer = Buffer.from(base64Data, "base64");
   const contentType = mimeType || "image/jpeg";
@@ -83,46 +83,54 @@ async function saveImageToFirestore(imgId: string, mimeType: string, base64Data:
   IMAGE_CACHE.set(cleanId, { contentType, buffer, base64Data });
   IMAGE_CACHE.set(docId, { contentType, buffer, base64Data });
 
-  // Save to Firestore
-  if (adminDb) {
-    try {
-      await adminDb.collection("system_data").doc(docId).set({
-        id: cleanId,
-        docId,
-        contentType,
-        data: base64Data,
-        size: buffer.length,
-        originalName: originalName || "image.jpg",
-        createdAt: new Date().toISOString()
-      });
-      console.log(`[Admin SDK] Image ${docId} persisted to Firestore cloud!`);
-    } catch (err: any) {
-      console.warn(`[Admin SDK] Failed to save image ${docId} to Firestore:`, err.message || err);
-    }
-  } else if (firestoreDb) {
-    try {
-      const docRef = doc(firestoreDb, "system_data", docId);
-      await setDoc(docRef, {
-        id: cleanId,
-        docId,
-        contentType,
-        data: base64Data,
-        size: buffer.length,
-        originalName: originalName || "image.jpg",
-        createdAt: new Date().toISOString()
-      });
-      console.log(`[Firestore SDK] Image ${docId} persisted to Firestore cloud!`);
-    } catch (err: any) {
-      console.warn(`[Firestore SDK] Failed to save image ${docId} to Firestore:`, err.message || err);
-    }
-  }
-
-  // Also write to local disk uploads as fallback
+  // Write to local disk uploads immediately
   try {
-    const ext = contentType.split("/")[1] || "jpeg";
+    const ext = contentType.split("/")[1]?.replace(/[^a-zA-Z0-9]/g, "") || "jpeg";
     fs.writeFileSync(path.join(UPLOADS_DIR, `${cleanId}.${ext}`), buffer);
     fs.writeFileSync(path.join(UPLOADS_DIR, cleanId), buffer);
   } catch (e) {}
+
+  // Save to Firestore in background with a timeout protection
+  const cloudSavePromise = (async () => {
+    if (adminDb) {
+      try {
+        await adminDb.collection("system_data").doc(docId).set({
+          id: cleanId,
+          docId,
+          contentType,
+          data: base64Data,
+          size: buffer.length,
+          originalName: originalName || "image.jpg",
+          createdAt: new Date().toISOString()
+        });
+        console.log(`[Admin SDK] Image ${docId} persisted to Firestore cloud!`);
+      } catch (err: any) {
+        console.warn(`[Admin SDK] Failed to save image ${docId} to Firestore:`, err.message || err);
+      }
+    } else if (firestoreDb) {
+      try {
+        const docRef = doc(firestoreDb, "system_data", docId);
+        await setDoc(docRef, {
+          id: cleanId,
+          docId,
+          contentType,
+          data: base64Data,
+          size: buffer.length,
+          originalName: originalName || "image.jpg",
+          createdAt: new Date().toISOString()
+        });
+        console.log(`[Firestore SDK] Image ${docId} persisted to Firestore cloud!`);
+      } catch (err: any) {
+        console.warn(`[Firestore SDK] Failed to save image ${docId} to Firestore:`, err.message || err);
+      }
+    }
+  })();
+
+  // Do not block response for more than 2 seconds if cloud is slow
+  await Promise.race([
+    cloudSavePromise,
+    new Promise(resolve => setTimeout(resolve, 2000))
+  ]).catch(() => {});
 
   return `/api/images/${cleanId}`;
 }
@@ -1247,18 +1255,26 @@ async function saveDb(data: DatabaseSchema): Promise<void> {
     console.error("Local database file write failed:", err);
   }
   
-  try {
-    if (adminDb) {
-      await adminDb.collection("system_data").doc("database").set(sanitizeForFirestore(data));
-      console.log("[Admin SDK] Firestore cloud backup succeeded!");
-    } else if (firestoreDb) {
-      const docRef = doc(firestoreDb, "system_data", "database");
-      await setDoc(docRef, sanitizeForFirestore(data));
-      console.log("Firestore cloud backup succeeded!");
+  // Asynchronously back up to Firestore without hanging API responses
+  const backupPromise = (async () => {
+    try {
+      if (adminDb) {
+        await adminDb.collection("system_data").doc("database").set(sanitizeForFirestore(data));
+        console.log("[Admin SDK] Firestore cloud backup succeeded!");
+      } else if (firestoreDb) {
+        const docRef = doc(firestoreDb, "system_data", "database");
+        await setDoc(docRef, sanitizeForFirestore(data));
+        console.log("Firestore cloud backup succeeded!");
+      }
+    } catch (err: any) {
+      console.warn("[Backup] Firestore cloud backup failed (continuing with local db):", err.message || err);
     }
-  } catch (err: any) {
-    console.warn("[Backup] Firestore cloud backup failed (continuing with local db):", err.message || err);
-  }
+  })();
+
+  await Promise.race([
+    backupPromise,
+    new Promise(resolve => setTimeout(resolve, 2000))
+  ]).catch(() => {});
 }
 
 // Initial image migration to Firestore on server start
@@ -1346,8 +1362,24 @@ app.get("/api/settings", (req, res) => {
 
 app.post("/api/settings", async (req, res) => {
   try {
-    const { logoUrl } = req.body || {};
+    let { logoUrl } = req.body || {};
     const db = getDb();
+    
+    // If incoming logoUrl is a raw data URL or base64 string, persist it to a permanent Firestore image endpoint
+    if (logoUrl && typeof logoUrl === "string" && (logoUrl.startsWith("data:image/") || logoUrl.startsWith("data:application/"))) {
+      try {
+        const matches = logoUrl.match(/^data:([^;]+);base64,(.+)$/);
+        if (matches && matches[2]) {
+          const mimeType = matches[1];
+          const base64Data = matches[2];
+          const imageId = `logo_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
+          logoUrl = await saveImageToFirestore(imageId, mimeType, base64Data, "website-logo");
+          console.log(`[Settings API] Converted base64 logo to permanent image URL: ${logoUrl}`);
+        }
+      } catch (imgErr) {
+        console.error("Failed to convert base64 logo in settings:", imgErr);
+      }
+    }
     
     db.settings = {
       logoUrl: logoUrl || null,
@@ -1358,6 +1390,7 @@ app.post("/api/settings", async (req, res) => {
     await saveDb(db);
     res.json({ success: true, settings: db.settings });
   } catch (err: any) {
+    console.error("Save settings error:", err);
     res.status(500).json({ error: err.message || err });
   }
 });
